@@ -1,5 +1,5 @@
 #include <iostream>
-#include<opencv.hpp>
+#include<opencv2/opencv.hpp>
 #include "CameraArguments.h"
 #include"CoreAlgorithm.h"
 using namespace cv;
@@ -9,7 +9,7 @@ vector<Mat> coordinate;
 Mat rgbChannel;
 vector<float> color;
 
-// È·¶¨Ã¿¸öµãÓëÊµ¼ÊµÄ¶ÔÓ¦µã
+// È·ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ÊµÄ¶ï¿½Ó¦ï¿½ï¿½
 struct matchpts {
 	double pts_x;
 	double pts_y;
@@ -18,7 +18,7 @@ struct matchpts {
 
 
 
-// ´ó½ò·¨ãÐÖµ·Ö¸î
+// ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½Ö¸ï¿½
 Mat OtsuAlgThreshold(Mat& src)
 {
 	if (src.channels() != 1)
@@ -108,8 +108,8 @@ Mat OtsuAlgThreshold(Mat& src)
 	return dst;
 }
 
-// Éú³ÉÐòÁÐÕâÊÇ
-//Éú³ÉDe BruijnÐòÁÐÊ±£¬Ê¹ÓÃÁËÒ»¸öÑ­»·ÐòÁÐµÄ¼¼ÇÉ£¬¼´½«Éú³ÉµÄÐòÁÐÔÙ´Î¸´ÖÆÒ»±é£¬²¢ÔÚ½áÎ²Ìí¼Ón-1¸ö×Ö·û£¬ÐÎ³ÉÒ»¸öÐÂµÄÐòÁÐ£¬Ê¹µÃÐòÁÐÖÐµÄÃ¿¸ö×Ó´®¶¼ÄÜ¹»Ç¡ºÃ³öÏÖÒ»´Î¡£
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+//ï¿½ï¿½ï¿½ï¿½De Bruijnï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ÐµÄ¼ï¿½ï¿½É£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Éµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù´Î¸ï¿½ï¿½ï¿½Ò»ï¿½é£¬ï¿½ï¿½ï¿½Ú½ï¿½Î²ï¿½ï¿½ï¿½ï¿½n-1ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½Î³ï¿½Ò»ï¿½ï¿½ï¿½Âµï¿½ï¿½ï¿½ï¿½Ð£ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½Ã¿ï¿½ï¿½ï¿½Ó´ï¿½ï¿½ï¿½ï¿½Ü¹ï¿½Ç¡ï¿½Ã³ï¿½ï¿½ï¿½Ò»ï¿½Î¡ï¿½
 vector<int> DeBruijn(int k, int n)
 {
 	std::vector<byte> a(k * n, 0);
@@ -170,7 +170,7 @@ void Reconstruction(vector<vector<float>> maximas, vector<vector<float>> minimas
 		//        double pc = 0;
 		for (auto j = 0; j < maximas[i].size(); j++)
 		{
-			// Í¼Ïñ·åÖµÎ»ÖÃËù¶ÔÓ¦µÄÆµÂÊÖµ,¶ÔÍ¼Ïñ½øÐÐ±àÂë
+			// Í¼ï¿½ï¿½ï¿½ÖµÎ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½Æµï¿½ï¿½Öµ,ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½Ð±ï¿½ï¿½ï¿½
 			double position;
 			if (j < maximas[i].size() - 3)
 			{
@@ -188,37 +188,37 @@ void Reconstruction(vector<vector<float>> maximas, vector<vector<float>> minimas
 			cout << position << endl;
 			Mat matrix = Mat::zeros(cv::Size(3, 3), CV_32FC1);
 
-			matrix.row(0) = Hc1(Rect(0, 2, 3, 1)) * (maximas[i][j]) - Hc1(Rect(0, 0, 3, 1));
-			matrix.row(1) = Hc1(Rect(0, 2, 3, 1)) * (float(i + minX)) - Hc1(Rect(0, 1, 3, 1));
+			matrix.row(0) = Hc1(Rect(0, 2, 3, 1)) * maximas[i][j] - Hc1(Rect(0, 0, 3, 1));
+			matrix.row(1) = Hc1(Rect(0, 2, 3, 1)) * float(i + minX) - Hc1(Rect(0, 1, 3, 1));
 			matrix.row(2) = Hp2(Rect(0, 2, 3, 1)) * position - Hp2(Rect(0, 0, 3, 1));
 			//cout << Hc1 << endl;
 			//cout << Hc1(Rect(0, 2, 3, 1)) << endl; // 
 
 			Mat tang = Mat::zeros(cv::Size(3, 1), CV_32FC1);
 			Mat b = Mat::zeros(cv::Size(1, 3), CV_32FC1);
-			b.row(0) = Hc1.at<float>(0, 3) - Hc1.at<float>(2, 3) * (maximas[i][j]);
-			b.row(1) = Hc1.at<float>(1, 3) - Hc1.at<float>(2, 3) * (float(i + minX));
-			b.row(2) = Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) * position;
+			b.at<float>(0, 0) = Hc1.at<float>(0, 3) - Hc1.at<float>(2, 3) * maximas[i][j];
+			b.at<float>(1, 0) = Hc1.at<float>(1, 3) - Hc1.at<float>(2, 3) * float(i + minX);
+			b.at<float>(2, 0) = Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) * position;
 
 
-			// Æ¥ÅäµÃµ½µÄÁÐÊý,¼´x
-			cout << "u1 = " << maximas[i][j] << "   " << "v1 = " << (float(i + minX);
-			cout << "u2 = " << position << endl; // Èç¹ûpositionÏàÍ¬ËµÃ÷£¨u1£¬v1£©ÊÇ¶ÔÓ¦µãÁË
+			// Match coordinates
+			cout << "u1 = " << maximas[i][j] << "   " << "v1 = " << float(i + minX) << endl;
+			cout << "u2 = " << position << endl;
 
 
 
 			solve(matrix, b, tang);
 			
-			// Êä³ö×óÏà»ú×ø±êÏµÏÂµÄÈýÎ¬¶Èµã
+			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½Âµï¿½ï¿½ï¿½Î¬ï¿½Èµï¿½
 			cout << maximas[i][j] << "    "<< float(i + minX) << endl;
 			cout << b << endl;
-			// ¶þÎ¬µã×ø±êÎª maximas[i][j]£¬ float(i + minX)
+			// ï¿½ï¿½Î¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îª maximas[i][j]ï¿½ï¿½ float(i + minX)
 
-			// Æ¥ÅäµãµÄ×ø±êÎªb£¬µ±×óÓÒÍ¼ÏñµÄbÒ»ÑùµÄÊ±ºòËµÃ÷¶ÔÓ¦µÄ¶þÎ¬µãÊÇÒ»ÑùµÄ
+			// Æ¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªbï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½bÒ»ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½Ó¦ï¿½Ä¶ï¿½Î¬ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½
 
 
 
-			// °´ÕÕÉî¶ÈÐÅÏ¢½øÐÐ¹ýÂË
+			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½ï¿½Ð¹ï¿½ï¿½ï¿½
 			if (tang.at<float>(2, 0) > 750 && tang.at<float>(2, 0) < 1500)
 			{
 				coordinate.push_back(tang.t());
@@ -292,7 +292,7 @@ void Reconstruction(vector<vector<float>> maximas, vector<vector<float>> minimas
 
 void saveCoordinate()
 {
-	ofstream destFile("./Data/my_result/result.pcd", ios::out); //ÒÔÎÄ±¾Ä£Ê½´ò¿ªout.txt±¸Ð´
+	ofstream destFile("./Data/my_result/result.pcd", ios::out); //ï¿½ï¿½ï¿½Ä±ï¿½Ä£Ê½ï¿½ï¿½out.txtï¿½ï¿½Ð´
 	destFile << "# .PCD v0.7 - Point Cloud Data file format" << endl;
 	destFile << "VERSION 0.7" << endl;
 	destFile << "FIELDS x y z rgb" << endl;
@@ -316,7 +316,7 @@ void saveCoordinate()
 		else
 		{
 			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " "
-				<< coordinate[i].at<float>(0, 2) << " " << color[i] << endl; //¿ÉÒÔÏñÓÃcoutÄÇÑùÓÃofstream¶ÔÏó
+				<< coordinate[i].at<float>(0, 2) << " " << color[i] << endl; //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½coutï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ofstreamï¿½ï¿½ï¿½ï¿½
 		}
 	}
 	destFile.close();
@@ -353,7 +353,7 @@ void savePly()
 
 int main()
 {
-	// Ðý×ª¾ØÕó
+	// ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½
 	Mat r(3, 3, CV_32F);
 	double m0[3][3] = {
 		{9.7004457782050868e-001, 1.3447278830863673e-002, 2.4255450466457243e-001},
@@ -363,7 +363,7 @@ int main()
 	for (auto i = 0; i < r.rows; i++)
 		for (auto j = 0; j < r.cols; j++)
 			r.at<float>(i, j) = m0[i][j];
-	// Æ½ÒÆ¾ØÕó
+	// Æ½ï¿½Æ¾ï¿½ï¿½ï¿½
 	Mat t(1, 3, CV_32F);
 	double m1[1][3] = {
 		{-1.9511179496234658e+002, 1.2627509817628756e+001, -5.9345885017522171e+001}
@@ -373,7 +373,7 @@ int main()
 		for (auto j = 0; j < t.cols; j++)
 			t.at<float>(i, j) = m1[i][j];
 
-	// ×óÏà»úÄÚ²Î
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú²ï¿½
 	Mat kc(3, 3, CV_32F);
 	double m2[3][3] = {
 		{2.1536653255083029e+003, 0., 6.1886776197116581e+002},
@@ -384,7 +384,7 @@ int main()
 		for (auto j = 0; j < kc.cols; j++)
 			kc.at<float>(i, j) = m2[i][j];
 
-	// ÓÒÏà»úÄÚ²Î
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú²ï¿½
 	Mat kp(3, 3, CV_32F);
 	double m3[3][3] = {
 		{1.7235093158297350e+003, 0., 4.4128195628736904e+002},
@@ -399,36 +399,36 @@ int main()
 	hconcat(cv::Mat::eye(3, 3, CV_32FC1),
 		cv::Mat::zeros(cv::Size(1, 3), CV_32FC1), tmp_matrix);
 
-	// ×óÏà»úµÄÄÚ²ÎÓëÍâ²ÎµÄ³Ë»ý
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ÎµÄ³Ë»ï¿½
 	// 3 * 3 * 3 * 4
 	Mat hc1 = kc * tmp_matrix; 
 	/*cout << hc1 << endl; */
 	hconcat(r, t.t(), tmp_matrix);
 
-	// ÓÒÏà»ú×ª»»µ½×óÏà»úµÄÍâ²ÎµÄÆ´½Ó¾ØÕó
+	// ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îµï¿½Æ´ï¿½Ó¾ï¿½ï¿½ï¿½
 	Mat hp2 = kp * tmp_matrix;
 
 
-	rgbChannel = imread(".\\Data\\image\\reconstruction\\test.png", cv::IMREAD_UNCHANGED);
+	rgbChannel = imread("./Data/image/reconstruction/test.png", cv::IMREAD_UNCHANGED);
 	int cols = rgbChannel.cols;
 	int rows = rgbChannel.rows;
 
-	Mat lab, hsv; // ³õÊ¼»¯lab¿Õ¼äµÄÍ¼Æ¬ºÍhsv¿Õ¼äµÄÍ¼Æ¬
+	Mat lab, hsv; // ï¿½ï¿½Ê¼ï¿½ï¿½labï¿½Õ¼ï¿½ï¿½Í¼Æ¬ï¿½ï¿½hsvï¿½Õ¼ï¿½ï¿½Í¼Æ¬
 	cvtColor(rgbChannel, hsv, COLOR_BGR2HSV, 3);
 
 	//imshow("hsv", hsv);
 	//waitKey(0);
 
-	// ´æ´¢ÁËÃ¿¸öÍ¨µÀÏÂµÄËùÓÐÖµ
+	// ï¿½æ´¢ï¿½ï¿½Ã¿ï¿½ï¿½Í¨ï¿½ï¿½ï¿½Âµï¿½ï¿½ï¿½ï¿½ï¿½Öµ
 	vector<Mat>hsvChannel;
 	split(hsv, hsvChannel);
 
-	// ×ª»»ÎªLab¿Õ¼ä
+	// ×ªï¿½ï¿½ÎªLabï¿½Õ¼ï¿½
 	cvtColor(rgbChannel, lab, COLOR_BGR2Lab);
 	//imshow("lab", lab);
 	//waitKey(0);
 
-	// ·Ö¸î³öËùÓÐµÄÌõÎÆ
+	// ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½ï¿½ï¿½ï¿½ï¿½
 	Mat mask = Mat::zeros(Size(cols, rows), CV_32FC1);
 	for (auto i = 0; i < rows; i++)
 	{
@@ -450,16 +450,16 @@ int main()
 	//imshow("tmp", tmp);
 	//waitKey(0);
 
-	 //ÓÃÓÚÍ¼Ïñ´¦ÀíÖÐµÄÐÎÌ¬Ñ§²Ù×÷£¬ÈçÅòÕÍºÍ¸¯Ê´
+	 //ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½ï¿½ï¿½Ì¬Ñ§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÍºÍ¸ï¿½Ê´
 	auto kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
 
-	 // ¿ªÔËËãÊÇÖ¸ÏÈ½øÐÐ¸¯Ê´²Ù×÷£¬ÔÙ½øÐÐÅòÕÍ²Ù×÷£¬¿ÉÒÔÈ¥³ýÍ¼ÏñÖÐµÄÐ¡ÔëµãºÍÏ¸Ð¡µÄÁ¬Í¨ÇøÓò
+	 // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½È½ï¿½ï¿½Ð¸ï¿½Ê´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¥ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Ðµï¿½Ð¡ï¿½ï¿½ï¿½ï¿½Ï¸Ð¡ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½
 	morphologyEx(tmp, tmp, MORPH_OPEN, kernel);
 	//imshow("tmp", tmp);
 	//waitKey(0);
 
 
-	// ¼ô²Ã³öÓÐÌõÎÆµÄÇøÓò
+	// ï¿½ï¿½ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æµï¿½ï¿½ï¿½ï¿½ï¿½
 	auto min = false;
 	for (auto i = 0; i < rows; i++)
 	{
@@ -482,7 +482,7 @@ int main()
 	}
 	
 
-	// µ÷½ÚãÐÖµ£¬Í¼Ïñ·Ö¸îÊÇÎªÁËÕÒµ½¾ØÐÎµÄ±ß½ç½øÐÐËÑË÷
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½Í¼ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½Òµï¿½ï¿½ï¿½ï¿½ÎµÄ±ß½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	minX -= 50;
 	minY -= 50;
 	maxX += 50;
@@ -490,7 +490,7 @@ int main()
 	//cout << minX << "     " << minY << "    "<< maxX << "     "<< maxY;
 
 
-	// ¶Ô²Ã¼ô³öÀ´µÄÍ¼Ïñ×ª»»Îª»Ò¶ÈÍ¼Ïñ,ÓÉÓÚÊÇ·Åµ½ÁË32FµÄ¿Õ¼äÀïËùÒÔÏÔÊ¾ÎªÈ«°×ºÜÕý³£Òª×ª»»Îª8Î»²ÅÄÜÕý³£¿´
+	// ï¿½Ô²Ã¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½×ªï¿½ï¿½Îªï¿½Ò¶ï¿½Í¼ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½Ç·Åµï¿½ï¿½ï¿½32Fï¿½Ä¿Õ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ÎªÈ«ï¿½×ºï¿½ï¿½ï¿½ï¿½ï¿½Òª×ªï¿½ï¿½Îª8Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	Mat img = Mat::zeros(Size(cols, rows), CV_32FC1);
 
 	for (auto i = minX; i < maxX; i++)
@@ -506,16 +506,16 @@ int main()
 		
 		}
 	}
-	//  ¶Ô²Ã¼ô³öÀ´µÄÍ¼Ïñ½øÐÐ±ÕÔËËã£¬Ìî³äÎïÌå¿Õ¶´
+	//  ï¿½Ô²Ã¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½ï¿½Ð±ï¿½ï¿½ï¿½ï¿½ã£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õ¶ï¿½
 	kernel = getStructuringElement(MORPH_RECT, cv::Size(3, 3));
 	morphologyEx(img, img, MORPH_CLOSE, kernel);
 
 	GaussianBlur(img, img, Size(5, 5), 0, 0);
 	Mat B = Mat::zeros(cols, rows, CV_8UC1);
 
-	//normalize(img, img, 1.0, 0.0, NORM_MINMAX);//¹éÒ»µ½0~1Ö®¼ä
-	//img.convertTo(B, CV_8UC1, 255, 0); //×ª»»Îª0~255Ö®¼äµÄÕûÊý
-	//imshow("B", B);//ÏÔÊ¾ 
+	//normalize(img, img, 1.0, 0.0, NORM_MINMAX);//ï¿½ï¿½Ò»ï¿½ï¿½0~1Ö®ï¿½ï¿½
+	//img.convertTo(B, CV_8UC1, 255, 0); //×ªï¿½ï¿½Îª0~255Ö®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	//imshow("B", B);//ï¿½ï¿½Ê¾ 
 	//waitKey(0);
 
 	Mat derivative1 = Mat::zeros(Size(cols, rows), CV_32FC1);
@@ -530,8 +530,8 @@ int main()
 		}
 	}
 
-	// ´æ´¢ÑÇÏñËØ×ø±êµã
-	// ¶Ô¼ÆËãµÃµ½µÄÒ»½×ºÍ¶þ½×µ¹Êý½øÐÐ·ÖÎö£¬ Ã¿Ò»ÐÐ¼«Öµµã±£´æÔÚmaximas£¨¼«´óÖµµã£©£¬ minimax(¼«Ð¡Öµµã£©, colorlable -> ÑÕÉ«Àà±ð
+	// ï¿½æ´¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	// ï¿½Ô¼ï¿½ï¿½ï¿½Ãµï¿½ï¿½ï¿½Ò»ï¿½×ºÍ¶ï¿½ï¿½×µï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð·ï¿½ï¿½ï¿½ï¿½ï¿½ Ã¿Ò»ï¿½Ð¼ï¿½Öµï¿½ã±£ï¿½ï¿½ï¿½ï¿½maximasï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ã£©ï¿½ï¿½ minimax(ï¿½ï¿½Ð¡Öµï¿½ã£©, colorlable -> ï¿½ï¿½É«ï¿½ï¿½ï¿½
 	vector<vector<float>> maximas(0, vector<float>(0, 0));
 	vector<vector<float>> minimas(0, vector<float>(0, 0));
 	vector<vector<float>> colorLabel(0, vector<float>(0, 0));
@@ -604,14 +604,14 @@ int main()
 
 		}
 	}
-	// ÑÕÉ«±êÇ©ÓÃÓÚ½«¼«Öµµã·ÖÎª²»Í¬µÄÀà±ð, ¼«Ð¡ÖµµãµÄÑÕÉ«±êÇ©ÓëÏàÓ¦µÄ¼«´óÖµµãµÄÑÕÉ«±êÇ©ÏàÍ¬¡£
+	// ï¿½ï¿½É«ï¿½ï¿½Ç©ï¿½ï¿½ï¿½Ú½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½Îªï¿½ï¿½Í¬ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½Ð¡Öµï¿½ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½Ç©ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½Ä¼ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½É«ï¿½ï¿½Ç©ï¿½ï¿½Í¬ï¿½ï¿½
 	//cout << minimas.size() << endl;
 	//cout << colorLabel.size() << endl;
 	
 	//cout << maximas.size() << endl;
 
-	// Ôö¼Ó³íÃÜ¶È,ÔÝÊ±¿É²»ÐèÒª
-	// To do:Ð¡²¨±ä»»
+	// ï¿½ï¿½ï¿½Ó³ï¿½ï¿½Ü¶ï¿½,ï¿½ï¿½Ê±ï¿½É²ï¿½ï¿½ï¿½Òª
+	// To do:Ð¡ï¿½ï¿½ï¿½ä»»
 
 	//
 	auto db = DeBruijn(3, 4);
@@ -621,17 +621,17 @@ int main()
 	// 
 	for (auto i = 0; i < 61; i++)
 	{
-		// ¶ÔÇ°64¸öÌõÎÆ½øÐÐ±àÂëÆµÂÊÖµ
+		// ï¿½ï¿½Ç°64ï¿½ï¿½ï¿½ï¿½ï¿½Æ½ï¿½ï¿½Ð±ï¿½ï¿½ï¿½Æµï¿½ï¿½Öµ
 		int index = int(pow(3, 3) * db.at(i) + pow(3, 2) * db.at(i + 1) + 3 * db.at(i + 2) + db.at(i + 3));
 
-		// De BruijnÐòÁÐÖÐÃ¿¸ö3-merÔÚÐòÁÐÖÐ³öÏÖµÄ´ÎÊý¡£Õâ¸ö¹«Ê½µÄÀ´Ô´ÊÇÒ»ÆªÃûÎª"Visualization and analysis of DNA microarrays using R and bioconductor"
-		map[index] = 7.5 + 14 * i; // ¶ÔÓ¦µÄÆµÂÊÖµ,ÒÑ¾­¿ªÊ¼±àÂëÁË
+		// De Bruijnï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½3-merï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð³ï¿½ï¿½ÖµÄ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½Ô´ï¿½ï¿½Ò»Æªï¿½ï¿½Îª"Visualization and analysis of DNA microarrays using R and bioconductor"
+		map[index] = 7.5 + 14 * i; // ï¿½ï¿½Ó¦ï¿½ï¿½Æµï¿½ï¿½Öµ,ï¿½Ñ¾ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	}
 	Reconstruction(maximas, minimas, colorLabel, hc1, hp2, map);
 
 	cout << coordinate.size() << endl;
 
-	ofstream destFile("./Data/my_result/result.txt", ios::out); //ÒÔÎÄ±¾Ä£Ê½´ò¿ªout.txt±¸Ð´
+	ofstream destFile("./Data/my_result/result.txt", ios::out); //ï¿½ï¿½ï¿½Ä±ï¿½Ä£Ê½ï¿½ï¿½out.txtï¿½ï¿½Ð´
 	for (auto i = 0; i < coordinate.size(); i++)
 	{
 		if (i == coordinate.size() - 1)
@@ -642,7 +642,7 @@ int main()
 		else
 		{
 			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " "
-				<< coordinate[i].at<float>(0, 2) << endl; //¿ÉÒÔÏñÓÃcoutÄÇÑùÓÃofstream¶ÔÏó
+				<< coordinate[i].at<float>(0, 2) << endl; //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½coutï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ofstreamï¿½ï¿½ï¿½ï¿½
 		}
 	}
 

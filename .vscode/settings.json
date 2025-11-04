@@ -1,0 +1,23 @@
+{
+    // ============================================
+    // VSCode C++ 开发基础配置
+    // ============================================
+    
+    // CMake 配置
+    // CMake 是一个跨平台的编译系统，用于管理项目的编译过程
+    "cmake.configureOnOpen": true,           // 打开项目时自动配置CMake
+    "cmake.buildDirectory": "${workspaceFolder}/build",  // 编译输出目录
+    "cmake.sourceDirectory": "${workspaceFolder}",       // CMakeLists.txt所在目录
+    "cmake.generator": "Unix Makefiles",     // 使用Unix Makefiles生成器
+    
+    // C++ IntelliSense 配置
+    // IntelliSense 提供代码补全、错误检查等功能
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",  // 使用CMake提供配置信息
+    "C_Cpp.default.intelliSenseEngine": "Tag Parser",  // 使用Tag Parser进行代码分析
+    
+    // 调试器配置
+    // 这些设置控制调试时的行为
+    "debug.console": "integratedTerminal",   // 调试输出显示在集成终端中
+    "debug.inlineValues": true,              // 在代码行内显示变量值
+    "debug.showDebugOutput": true            // 显示调试器的详细输出信息
+}

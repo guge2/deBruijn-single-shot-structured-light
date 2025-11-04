@@ -2,7 +2,7 @@
 //
 
 #include <iostream>
-#include<opencv.hpp>
+#include<opencv2/opencv.hpp>
 #include "CameraArguments.h"
 #include"CoreAlgorithm.h"
 using namespace cv;
@@ -54,7 +54,7 @@ int main()
 		auto cArg = CameraArguments::getInstance(r, t, kc, kp);
 
 		string path = ".\\Data\\image\\reconstruction\\test.png";
-		CoreAlgorithm testCase = CoreAlgorithm::CoreAlgorithm(path, cArg);
+		CoreAlgorithm testCase(path, cArg);
 		testCase.run();
 
 		//得到所有的三维点坐标
