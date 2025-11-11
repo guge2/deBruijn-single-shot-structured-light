@@ -1,581 +1,482 @@
 #include "CameraArguments.h"
 #include "CoreAlgorithm.h"
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
-#include <opencv2/opencv.hpp>
+#include <limits>
+#include <numeric>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
 
-using namespace cv;
+namespace {
 
-int minX = 0, maxX = 0, minY = 0, maxY = 0;
-vector<Mat> coordinate;
-Mat rgbChannel;
-vector<float> color;
-
-// 确定每个点与实际的对应点
-struct matchpts {
-	double pts_x;
-	double pts_y;
-	double position;
+struct CropBounds {
+	int minRow{ 0 };
+	int maxRow{ 0 };
+	int minCol{ 0 };
+	int maxCol{ 0 };
 };
 
-// 大津法阈值分割
-Mat OtsuAlgThreshold(Mat &src) {
-	if (src.channels() != 1) {
-		cout << "Please input Gray-src!" << endl;
-	}
+struct ReconstructionResult {
+	std::vector<cv::Vec3f> points;
+	std::vector<float> colors;
+};
 
-	auto T                = 0;
-	double varValue       = 0;
-	double w0             = 0;
-	double w1             = 0;
-	double u0             = 0;
-	double u1             = 0;
-	double Histogram[256] = { 0 };
-	uchar *data           = src.data;
+cv::Mat1b otsuThreshold(const cv::Mat1b &src) {
+	CV_Assert(src.channels() == 1);
 
-	double totalNum = src.rows * src.cols;
-
-	for (auto i = 0; i < src.rows; i++) {
-		for (auto j = 0; j < src.cols; j++) {
-			if (src.at<float>(i, j) != 0)
-				Histogram[data[i * src.step + j]]++;
+	std::array<double, 256> histogram{ 0.0 };
+	for (int r = 0; r < src.rows; ++r) {
+		const auto *row = src.ptr<uchar>(r);
+		for (int c = 0; c < src.cols; ++c) {
+			const auto value = row[c];
+			if (value != 0) {
+				++histogram[value];
+			}
 		}
 	}
 
-	auto minpos = 0, maxpos = 0;
-	for (auto i = 0; i < 255; i++) {
-		if (Histogram[i] != 0) {
-			minpos = i;
+	const double totalPixels   = static_cast<double>(src.rows) * src.cols;
+	const double nonZeroPixels = std::accumulate(histogram.begin(), histogram.end(), 0.0);
+	if (nonZeroPixels == 0.0) {
+		return cv::Mat1b::zeros(src.size());
+	}
+
+	const double weightedSum = [&histogram]() {
+		double sum = 0.0;
+		for (int i = 0; i < static_cast<int>(histogram.size()); ++i) {
+			sum += static_cast<double>(i) * histogram[i];
+		}
+		return sum;
+	}();
+
+	double bestVariance = -1.0;
+	int bestThreshold   = 0;
+	double cumulativeWeight{ 0.0 };
+	double cumulativeMean{ 0.0 };
+
+	for (int threshold = 0; threshold < 256; ++threshold) {
+		cumulativeWeight += histogram[threshold];
+		if (cumulativeWeight == 0.0) {
+			continue;
+		}
+
+		const double remainingWeight = nonZeroPixels - cumulativeWeight;
+		if (remainingWeight == 0.0) {
 			break;
 		}
+
+		cumulativeMean += static_cast<double>(threshold) * histogram[threshold];
+		const double foregroundMean = cumulativeMean / cumulativeWeight;
+		const double backgroundMean = (weightedSum - cumulativeMean) / remainingWeight;
+
+		const double foregroundWeight = cumulativeWeight / totalPixels;
+		const double backgroundWeight = remainingWeight / totalPixels;
+		const double variance         = foregroundWeight * backgroundWeight * std::pow(foregroundMean - backgroundMean, 2.0);
+
+		if (variance > bestVariance) {
+			bestVariance  = variance;
+			bestThreshold = threshold;
+		}
 	}
 
-	for (auto i = 255; i > 0; i--) {
-		if (Histogram[i] != 0) {
-			maxpos = i;
-			break;
-		}
-	}
-
-	for (auto i = minpos; i <= maxpos; i++) {
-		w1 = 0;
-		u1 = 0;
-		w0 = 0;
-		u0 = 0;
-		for (auto j = 0; j <= i; j++) {
-			w1 += Histogram[j];
-			u1 += j * Histogram[j];
-		}
-		if (w1 == 0) {
-			break;
-		}
-		u1 = u1 / w1;
-		w1 = w1 / totalNum;
-		for (auto k = i + 1; k < 255; k++) {
-			w0 += Histogram[k];
-			u0 += k * Histogram[k];
-		}
-		if (w0 == 0) {
-			break;
-		}
-		u0 = u0 / w0;
-		w0 = w0 / totalNum;
-
-		auto varValueI = w0 * w1 * (u1 - u0) * (u1 - u0);
-		if (varValue < varValueI) {
-			varValue = varValueI;
-			T        = i;
-		}
-	}
-	//    cout << T << endl;
-	Mat dst = src.clone();
-	for (auto i = 0; i < src.rows; i++)
-		for (auto j = 0; j < src.cols; j++)
-			dst.at<float>(i, j) = src.at<float>(i, j) > T ? 255 : 0;
+	cv::Mat1b dst;
+	cv::threshold(src, dst, bestThreshold, 255, cv::THRESH_BINARY);
 	return dst;
 }
 
-// 生成序列这是
-// 生成De
-// Bruijn序列时，使用了一个循环序列的技巧，即将生成的序列再次复制一遍，并在结尾添加n-1个字符，形成一个新的序列，使得序列中的每个子串都能够恰好出现一次。
-vector<int> DeBruijn(int k, int n) {
-	std::vector<byte> a(k * n, 0);
-	std::vector<byte> seq;
+CropBounds findStripeBounds(const cv::Mat1b &mask, int padding) {
+	CropBounds bounds{ mask.rows, 0, mask.cols, 0 };
+	bool found = false;
 
-	std::function<void(int, int)> db;
-	db = [&](int t, int p) {
-		if (t > n) {
-			if (n % p == 0) {
-				for (int i = 1; i < p + 1; i++) {
-					seq.push_back(a[i]);
+	for (int r = 0; r < mask.rows; ++r) {
+		const auto *row = mask.ptr<uchar>(r);
+		for (int c = 0; c < mask.cols; ++c) {
+			if (row[c] != 255) {
+				continue;
+			}
+
+			if (!found) {
+				bounds.minRow = bounds.maxRow = r;
+				bounds.minCol = bounds.maxCol = c;
+				found                         = true;
+				continue;
+			}
+
+			bounds.minRow = std::min(bounds.minRow, r);
+			bounds.maxRow = std::max(bounds.maxRow, r);
+			bounds.minCol = std::min(bounds.minCol, c);
+			bounds.maxCol = std::max(bounds.maxCol, c);
+		}
+	}
+
+	if (!found) {
+		return { 0, mask.rows, 0, mask.cols };
+	}
+
+	bounds.minRow = std::max(0, bounds.minRow - padding);
+	bounds.minCol = std::max(0, bounds.minCol - padding);
+	bounds.maxRow = std::min(mask.rows, bounds.maxRow + padding + 1);
+	bounds.maxCol = std::min(mask.cols, bounds.maxCol + padding + 1);
+	return bounds;
+}
+
+std::vector<int> deBruijnSequence(int alphabet, int subseqLength) {
+	std::vector<int> a(alphabet * subseqLength, 0);
+	std::vector<int> sequence;
+	sequence.reserve(static_cast<std::size_t>(std::pow(alphabet, subseqLength)));
+
+	const auto db = [&](auto &&self, int t, int p) -> void {
+		if (t > subseqLength) {
+			if (subseqLength % p == 0) {
+				for (int i = 1; i <= p; ++i) {
+					sequence.push_back(a[i]);
 				}
 			}
-		} else {
-			a[t] = a[t - p];
-			db(t + 1, p);
-			auto j = a[t - p] + 1;
-			while (j < k) {
-				a[t] = j & 0xFF;
-				db(t + 1, t);
-				j++;
-			}
+			return;
+		}
+
+		a[t] = a[t - p];
+		self(self, t + 1, p);
+		for (int j = a[t - p] + 1; j < alphabet; ++j) {
+			a[t] = j;
+			self(self, t + 1, t);
 		}
 	};
 
-	db(1, 1);
-	std::string buf;
-	for (auto i : seq) {
-		buf.push_back('0' + i);
-	}
+	db(db, 1, 1);
 
-	std::vector<int> res;
-	std::string tmp = buf + buf.substr(0, n - 1);
-	for (char i : tmp) {
-		res.push_back(i - '0');
+	std::vector<int> result(sequence.begin(), sequence.end());
+	const int extra = std::max(0, subseqLength - 1);
+	for (int i = 0; i < extra && i < static_cast<int>(result.size()); ++i) {
+		result.push_back(result[i]);
 	}
-	return res;
+	return result;
 }
 
-void Reconstruction(vector<vector<float>> maximas,
-                    vector<vector<float>> minimas,
-                    vector<vector<float>> colorLabel,
-                    /*vector<vector<float>> phases, */ const Mat &Hc1,
-                    Mat Hp2,
-                    const double *map) {
-	for (auto i = 0; i < maximas.size(); i++) {
-		if (maximas[i].empty())
+int encodePattern(const std::vector<int> &colors, std::size_t start) {
+	CV_Assert(start + 3 < colors.size());
+	constexpr int base  = 3;
+	constexpr int base2 = base * base;
+	constexpr int base3 = base2 * base;
+	const int c0        = colors[start];
+	const int c1        = colors[start + 1];
+	const int c2        = colors[start + 2];
+	const int c3        = colors[start + 3];
+	return base3 * c0 + base2 * c1 + base * c2 + c3;
+}
+
+double lookupFrequency(const std::vector<int> &colors, std::size_t idx, std::span<const double> frequencyLut) {
+	if (colors.size() < 4) {
+		return 0.0;
+	}
+
+	if (idx + 3 < colors.size()) {
+		const int code = encodePattern(colors, idx);
+		return code < static_cast<int>(frequencyLut.size()) ? frequencyLut[code] : 0.0;
+	}
+
+	const std::size_t anchor = colors.size() - 4;
+	const int code           = encodePattern(colors, anchor);
+	const double baseFreq    = code < static_cast<int>(frequencyLut.size()) ? frequencyLut[code] : 0.0;
+	const double offset      = static_cast<double>(idx - colors.size() + 4);
+	return baseFreq + 14.0 * offset;
+}
+
+ReconstructionResult reconstructPoints(const std::vector<std::vector<float>> &maxima,
+                                       const std::vector<std::vector<int>> &colorLabels,
+                                       const cv::Mat &leftProjection,
+                                       const cv::Mat &rightProjection,
+                                       std::span<const double> frequencyLut,
+                                       const CropBounds &bounds,
+                                       const cv::Mat &rgbSource) {
+	ReconstructionResult result;
+
+	const auto candidateCount =
+	    std::accumulate(maxima.begin(), maxima.end(), std::size_t{ 0 }, [](std::size_t acc, const auto &row) { return acc + row.size(); });
+	result.points.reserve(candidateCount);
+	result.colors.reserve(candidateCount);
+
+	cv::Mat1f matrix(3, 3);
+	cv::Mat1f rhs(3, 1);
+	cv::Mat1f solution(3, 1);
+
+	for (std::size_t rowIdx = 0; rowIdx < maxima.size(); ++rowIdx) {
+		const auto &rowMaxima = maxima[rowIdx];
+		if (rowMaxima.size() < 4 || rowIdx >= colorLabels.size()) {
 			continue;
-		if (maximas[i].size() < 4)
+		}
+
+		const auto &rowColors = colorLabels[rowIdx];
+		if (rowColors.size() != rowMaxima.size()) {
 			continue;
-		auto mark = 0;
-		//        double pc = 0;
-		for (auto j = 0; j < maximas[i].size(); j++) {
-			// 图像峰值位置所对应的频率值,对图像进行编码
-			double position;
-			if (j < maximas[i].size() - 3) {
-				position =
-				    map[int(pow(3, 3) * colorLabel[i].at(j) + pow(3, 2) * colorLabel[i].at(j + 1) + 3 * colorLabel[i].at(j + 2) + colorLabel[i].at(j + 3))];
-			} else {
-				auto fix   = maximas[i].size() - 4;
-				auto index = j - maximas[i].size() + 4;
-				position   = map[int(pow(3, 3) * colorLabel[i].at(fix) + pow(3, 2) * colorLabel[i].at(fix + 1) + 3 * colorLabel[i].at(fix + 2) +
-                                   colorLabel[i].at(fix + 3))] +
-				           14.0 * index;
+		}
+
+		const int imageRow = static_cast<int>(rowIdx) + bounds.minRow;
+
+		for (std::size_t colIdx = 0; colIdx < rowMaxima.size(); ++colIdx) {
+			const double frequency = lookupFrequency(rowColors, colIdx, frequencyLut);
+			const float u          = rowMaxima[colIdx];
+			const float v          = static_cast<float>(imageRow);
+
+			matrix.row(0) = leftProjection(cv::Rect(0, 2, 3, 1)) * u - leftProjection(cv::Rect(0, 0, 3, 1));
+			matrix.row(1) = leftProjection(cv::Rect(0, 2, 3, 1)) * v - leftProjection(cv::Rect(0, 1, 3, 1));
+			matrix.row(2) = rightProjection(cv::Rect(0, 2, 3, 1)) * static_cast<float>(frequency) - rightProjection(cv::Rect(0, 0, 3, 1));
+
+			rhs.at<float>(0, 0) = leftProjection.at<float>(0, 3) - leftProjection.at<float>(2, 3) * u;
+			rhs.at<float>(1, 0) = leftProjection.at<float>(1, 3) - leftProjection.at<float>(2, 3) * v;
+			rhs.at<float>(2, 0) = rightProjection.at<float>(0, 3) - rightProjection.at<float>(2, 3) * static_cast<float>(frequency);
+
+			if (!cv::solve(matrix, rhs, solution, cv::DECOMP_LU)) {
+				continue;
 			}
 
-			cout << position << endl;
-			Mat matrix = Mat::zeros(cv::Size(3, 3), CV_32FC1);
-
-			matrix.row(0) = Hc1(Rect(0, 2, 3, 1)) * (maximas[i][j]) - Hc1(Rect(0, 0, 3, 1));
-			matrix.row(1) = Hc1(Rect(0, 2, 3, 1)) * (float(i + minX)) - Hc1(Rect(0, 1, 3, 1));
-			matrix.row(2) = Hp2(Rect(0, 2, 3, 1)) * position - Hp2(Rect(0, 0, 3, 1));
-			// cout << Hc1 << endl;
-			// cout << Hc1(Rect(0, 2, 3, 1)) << endl; //
-
-			Mat tang = Mat::zeros(cv::Size(3, 1), CV_32FC1);
-			Mat b    = Mat::zeros(cv::Size(1, 3), CV_32FC1);
-			b.row(0) = Hc1.at<float>(0, 3) - Hc1.at<float>(2, 3) * (maximas[i][j]);
-			b.row(1) = Hc1.at<float>(1, 3) - Hc1.at<float>(2, 3) * (float(i + minX));
-			b.row(2) = Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) * position;
-
-			// 匹配得到的列数,即x
-			cout << "u1 = " << maximas[i][j] << "   " << "v1 = " << (float(i + minX)) << endl;
-			cout << "u2 = " << position << endl; // 如果position相同说明（u1，v1）是对应点了
-
-			solve(matrix, b, tang);
-
-			// 输出左相机坐标系下的三维度点
-			cout << maximas[i][j] << "    " << float(i + minX) << endl;
-			cout << b << endl;
-			// 二维点坐标为 maximas[i][j]， float(i + minX)
-
-			// 匹配点的坐标为b，当左右图像的b一样的时候说明对应的二维点是一样的
-
-			// 按照深度信息进行过滤
-			if (tang.at<float>(2, 0) > 750 && tang.at<float>(2, 0) < 1500) {
-				coordinate.push_back(tang.t());
-
-				int r = (int)rgbChannel.at<Vec3b>(i + minX, maximas[i][j])[2], g = rgbChannel.at<Vec3b>(i + minX, maximas[i][j])[1],
-				    b      = rgbChannel.at<Vec3b>(i + minX, maximas[i][j])[0];
-				int rgb    = ((int)r << 16 | (int)g << 8 | (int)b);
-				float frgb = *reinterpret_cast<float *>(&rgb);
-				color.push_back(frgb);
+			const float depth = solution.at<float>(2, 0);
+			if (depth < 750.0f || depth > 1500.0f) {
+				continue;
 			}
-			//            if (i == 200)cout << maximas[i][j] << ","
-			//            << 0 << "," << position << endl;
-			/*	if (phases[i].empty())continue;
-              auto pi = false;
-              auto start = minimas[i][0];
-              if (start > maximas[i][j]) continue;
-              if (j == 0)
-              {
-                      for (auto k = mark; k + start <
-         maximas[i][j]; k++)
-                      {
-                              if ((start + k) < maximas[i][j]
-         && phases[i][k] < 0)continue; if ((start + k) <
-         maximas[i][j] && phases[i][k] > 0)
-                              {
-                                      if (maximas[i][j] -
-         (start + k) < 1)
-                                      {
-                                              continue;
-                                      }
-                                      mark = k + 1;
-                              }
-                              else if ((start + k) >
-         maximas[i][j]) break;
-                      }
-              }
 
-              for (auto k = mark; k < phases[i].size() - 1;
-         k++)
-              {
-                      mark++;
-                      double newPosition;
-                      if ((start + k) < maximas[i][j] &&
-         phases[i][k] < 0) newPosition = position +
-         phases[i][k]; else if ((maximas[i][j] - (start + k))
-         > 1 && phases[i][k] > 0) newPosition = position +
-         phases[i][k] - 7; else if ((start + k) >
-         maximas[i][j] && phases[i][k] > 0)newPosition =
-         position + phases[i][k]; else if (((start + k) -
-         maximas[i][j]) > 1 && phases[i][k] < 0) newPosition =
-         position + phases[i][k] + 7; else continue;
+			result.points.emplace_back(solution.at<float>(0, 0), solution.at<float>(1, 0), depth);
 
-                      matrix.row(0) = Hc1(Rect(0, 2, 3, 1)) *
-         (start + k) - Hc1(Rect(0, 0, 3, 1)); matrix.row(2) =
-         Hp2(Rect(0, 2, 3, 1)) * newPosition - Hp2(Rect(0, 0,
-         3, 1)); b.row(0) = Hc1.at<float>(0, 3) -
-         Hc1.at<float>(2, 3) * (start + k); b.row(2) =
-         Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) *
-         newPosition; solve(matrix, b, tang); if
-         (tang.at<float>(2, 0) > 750 && tang.at<float>(2, 0) <
-         1500)
-                      {
-                              coordinate.push_back(tang.t());
-                              int r =
-         (int)rgbChannel.at<Vec3b>(i + minX, (start + k))[2],
-                                      g =
-         rgbChannel.at<Vec3b>(i + minX, (start + k))[1], b =
-         rgbChannel.at<Vec3b>(i + minX, (start + k))[0]; int
-         rgb = ((int)r << 16 | (int)g << 8 | (int)b); float
-         frgb = *reinterpret_cast<float*>(&rgb);
-                              color.push_back(frgb);
-                      }
-
-                      if ((start + k) > maximas[i][j] && !pi
-         && phases[i][k] > 0) pi = true;
-
-                      if ((start + k) > maximas[i][j] &&
-         phases[i][k] < 0 && phases[i][k + 1] > 0 && pi)break;
-
-              }*/
+			const int col    = std::clamp(static_cast<int>(std::lround(u)), 0, rgbSource.cols - 1);
+			const auto pixel = rgbSource.at<cv::Vec3b>(imageRow, col);
+			const int packed = (static_cast<int>(pixel[2]) << 16) | (static_cast<int>(pixel[1]) << 8) | static_cast<int>(pixel[0]);
+			result.colors.push_back(std::bit_cast<float>(packed));
 		}
 	}
+
+	return result;
 }
 
-void saveCoordinate() {
-	ofstream destFile("../Data/my_result/result.pcd",
-	                  ios::out); // 以文本模式打开out.txt备写
-	destFile << "# .PCD v0.7 - Point Cloud Data file format" << endl;
-	destFile << "VERSION 0.7" << endl;
-	destFile << "FIELDS x y z rgb" << endl;
-	destFile << "SIZE 4 4 4 4" << endl;
-	destFile << "TYPE F F F F" << endl;
-	destFile << "COUNT 1 1 1 1" << endl;
-	destFile << "WIDTH " << coordinate.size() << endl;
-	destFile << "HEIGHT 1" << endl;
-
-	destFile << "VIEWPOINT 0 0 0 1 0 0 0" << endl;
-	destFile << "POINTS " << coordinate.size() << endl;
-	destFile << "DATA ascii" << endl;
-	for (auto i = 0; i < coordinate.size(); i++) {
-		//        cout << i << endl;
-		if (i == coordinate.size() - 1) {
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " " << coordinate[i].at<float>(0, 2) << " " << color[i];
-		} else {
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " " << coordinate[i].at<float>(0, 2) << " " << color[i]
-			         << endl; // 可以像用cout那样用ofstream对象
-		}
-	}
-	destFile.close();
-}
-
-void savePly() {
-	std::ofstream plyFile("../Data/my_result/result.ply");
-
-	if (!plyFile) {
-		std::cerr << "Failed to open output file." << std::endl;
+void saveTxt(std::string_view path, const ReconstructionResult &result) {
+	std::ofstream file{ std::string(path) };
+	if (!file) {
+		std::cerr << "Failed to open " << path << '\n';
 		return;
 	}
 
-	plyFile << "ply" << std::endl;
-	plyFile << "format ascii 1.0" << std::endl;
-	plyFile << "element vertex " << coordinate.size() << std::endl;
-	plyFile << "property float x" << std::endl;
-	plyFile << "property float y" << std::endl;
-	plyFile << "property float z" << std::endl;
-	plyFile << "end_header" << std::endl;
-
-	for (const auto &point : coordinate) {
-		plyFile << point.at<float>(0, 0) << " " << point.at<float>(0, 1) << " " << point.at<float>(0, 2) << std::endl;
+	for (std::size_t i = 0; i < result.points.size(); ++i) {
+		const auto &p = result.points[i];
+		file << p[0] << ' ' << p[1] << ' ' << p[2];
+		if (i + 1 < result.points.size()) {
+			file << '\n';
+		}
 	}
-
-	plyFile.close();
-
-	std::cout << "PLY file saved successfully." << std::endl;
 }
 
+void savePcd(std::string_view path, const ReconstructionResult &result) {
+	std::ofstream file{ std::string(path) };
+	if (!file) {
+		std::cerr << "Failed to open " << path << '\n';
+		return;
+	}
+
+	file << "# .PCD v0.7 - Point Cloud Data file format\n";
+	file << "VERSION 0.7\n";
+	file << "FIELDS x y z rgb\n";
+	file << "SIZE 4 4 4 4\n";
+	file << "TYPE F F F F\n";
+	file << "COUNT 1 1 1 1\n";
+	file << "WIDTH " << result.points.size() << '\n';
+	file << "HEIGHT 1\n";
+	file << "VIEWPOINT 0 0 0 1 0 0 0\n";
+	file << "POINTS " << result.points.size() << '\n';
+	file << "DATA ascii\n";
+
+	for (std::size_t i = 0; i < result.points.size(); ++i) {
+		const auto &p   = result.points[i];
+		const float rgb = i < result.colors.size() ? result.colors[i] : 0.0f;
+		file << p[0] << ' ' << p[1] << ' ' << p[2] << ' ' << rgb << '\n';
+	}
+}
+
+void savePly(std::string_view path, const ReconstructionResult &result) {
+	std::ofstream file{ std::string(path) };
+	if (!file) {
+		std::cerr << "Failed to open " << path << '\n';
+		return;
+	}
+
+	file << "ply\n";
+	file << "format ascii 1.0\n";
+	file << "element vertex " << result.points.size() << '\n';
+	file << "property float x\n";
+	file << "property float y\n";
+	file << "property float z\n";
+	file << "end_header\n";
+
+	for (const auto &point : result.points) {
+		file << point[0] << ' ' << point[1] << ' ' << point[2] << '\n';
+	}
+}
+
+} // namespace
+
 int main() {
-	// 旋转矩阵
-	Mat r(3, 3, CV_32F);
-	double m0[3][3] = { { 9.7004457782050868e-001, 1.3447278830863673e-002, 2.4255450466457243e-001 },
-		                { -8.7082927494022376e-003, 9.9974988338843274e-001, -2.0599424802792338e-002 },
-		                { -2.4277084396282392e-001, 1.7870124701864658e-002, 9.6991905639837694e-001 } };
-	for (auto i = 0; i < r.rows; i++)
-		for (auto j = 0; j < r.cols; j++)
-			r.at<float>(i, j) = m0[i][j];
-	// 平移矩阵
-	Mat t(1, 3, CV_32F);
-	double m1[1][3] = { { -1.9511179496234658e+002, 1.2627509817628756e+001, -5.9345885017522171e+001 } };
+	const cv::Mat rotation        = (cv::Mat_<float>(3, 3) << 9.7004458e-001f,
+                              1.3447279e-002f,
+                              2.4255451e-001f,
+                              -8.7082927e-003f,
+                              9.9974989e-001f,
+                              -2.0599425e-002f,
+                              -2.4277084e-001f,
+                              1.7870125e-002f,
+                              9.6991906e-001f);
+	const cv::Mat translation     = (cv::Mat_<float>(3, 1) << -1.95111795e+002f, 1.26275098e+001f, -5.9345885e+001f);
+	const cv::Mat leftIntrinsics  = (cv::Mat_<float>(3, 3) << 2.1536653e+003f, 0.f, 6.1886776e+002f, 0.f, 2.1484364e+003f, 5.0694899e+002f, 0.f, 0.f, 1.f);
+	const cv::Mat rightIntrinsics = (cv::Mat_<float>(3, 3) << 1.7235093e+003f, 0.f, 4.4128196e+002f, 0.f, 3.4533404e+003f, 5.7316458e+002f, 0.f, 0.f, 1.f);
 
-	for (auto i = 0; i < t.rows; i++)
-		for (auto j = 0; j < t.cols; j++)
-			t.at<float>(i, j) = m1[i][j];
+	cv::Mat projection;
+	cv::hconcat(cv::Mat::eye(3, 3, CV_32F), cv::Mat::zeros(cv::Size(1, 3), CV_32F), projection);
+	const cv::Mat leftProjection = leftIntrinsics * projection;
 
-	// 左相机内参
-	Mat kc(3, 3, CV_32F);
-	double m2[3][3] = { { 2.1536653255083029e+003, 0., 6.1886776197116581e+002 }, { 0., 2.1484363899666910e+003, 5.0694898820460787e+002 }, { 0., 0., 1. } };
-	for (auto i = 0; i < kc.rows; i++)
-		for (auto j = 0; j < kc.cols; j++)
-			kc.at<float>(i, j) = m2[i][j];
+	cv::hconcat(rotation, translation, projection);
+	const cv::Mat rightProjection = rightIntrinsics * projection;
 
-	// 右相机内参
-	Mat kp(3, 3, CV_32F);
-	double m3[3][3] = { { 1.7235093158297350e+003, 0., 4.4128195628736904e+002 }, { 0., 3.4533404000869359e+003, 5.7316457428558715e+002 }, { 0., 0., 1. } };
-	for (auto i = 0; i < kp.rows; i++)
-		for (auto j = 0; j < kp.cols; j++)
-			kp.at<float>(i, j) = m3[i][j];
+	cv::Mat rgb = cv::imread("../Data/image/reconstruction/test.png", cv::IMREAD_COLOR);
+	if (rgb.empty()) {
+		std::cerr << "Failed to load input image.\n";
+		return EXIT_FAILURE;
+	}
 
-	cv::Mat tmp_matrix;
-	hconcat(cv::Mat::eye(3, 3, CV_32FC1), cv::Mat::zeros(cv::Size(1, 3), CV_32FC1), tmp_matrix);
+	cv::Mat lab;
+	cv::cvtColor(rgb, lab, cv::COLOR_BGR2Lab);
 
-	// 左相机的内参与外参的乘积
-	// 3 * 3 * 3 * 4
-	Mat hc1 = kc * tmp_matrix;
-	/*cout << hc1 << endl; */
-	hconcat(r, t.t(), tmp_matrix);
-
-	// 右相机转换到左相机的外参的拼接矩阵
-	Mat hp2 = kp * tmp_matrix;
-
-	rgbChannel = imread("..\\Data\\image\\reconstruction\\test.png", cv::IMREAD_UNCHANGED);
-	int cols   = rgbChannel.cols;
-	int rows   = rgbChannel.rows;
-
-	Mat lab, hsv; // 初始化lab空间的图片和hsv空间的图片
-	cvtColor(rgbChannel, hsv, COLOR_BGR2HSV, 3);
-
-	// imshow("hsv", hsv);
-	// waitKey(0);
-
-	// 存储了每个通道下的所有值
-	vector<Mat> hsvChannel;
-	split(hsv, hsvChannel);
-
-	// 转换为Lab空间
-	cvtColor(rgbChannel, lab, COLOR_BGR2Lab);
-	// imshow("lab", lab);
-	// waitKey(0);
-
-	// 分割出所有的条纹
-	Mat mask = Mat::zeros(Size(cols, rows), CV_32FC1);
-	for (auto i = 0; i < rows; i++) {
-		for (auto j = 0; j < cols; j++) {
-			mask.at<float>(i, j) = (int)rgbChannel.at<Vec3b>(i, j)[0] > (int)rgbChannel.at<Vec3b>(i, j)[1] ?
-			                           ((int)rgbChannel.at<Vec3b>(i, j)[0] > (int)rgbChannel.at<Vec3b>(i, j)[2] ? (int)rgbChannel.at<Vec3b>(i, j)[0] :
-			                                                                                                      (int)rgbChannel.at<Vec3b>(i, j)[2]) :
-			                           ((int)rgbChannel.at<Vec3b>(i, j)[1] > (int)rgbChannel.at<Vec3b>(i, j)[2] ? (int)rgbChannel.at<Vec3b>(i, j)[1] :
-			                                                                                                      (int)rgbChannel.at<Vec3b>(i, j)[2]);
+	cv::Mat1b mask(rgb.rows, rgb.cols);
+	for (int r = 0; r < rgb.rows; ++r) {
+		const auto *row = rgb.ptr<cv::Vec3b>(r);
+		auto *maskRow   = mask.ptr<uchar>(r);
+		for (int c = 0; c < rgb.cols; ++c) {
+			const auto &pixel = row[c];
+			maskRow[c]        = static_cast<uchar>(std::max({ pixel[0], pixel[1], pixel[2] }));
 		}
 	}
 
-	Mat tmp = OtsuAlgThreshold(mask);
-	// imshow("tmp", tmp);
-	// waitKey(0);
+	cv::Mat1b binaryMask = otsuThreshold(mask);
+	auto openKernel      = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+	cv::morphologyEx(binaryMask, binaryMask, cv::MORPH_OPEN, openKernel);
 
-	// 用于图像处理中的形态学操作，如膨胀和腐蚀
-	auto kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+	const auto bounds = findStripeBounds(binaryMask, 50);
 
-	// 开运算是指先进行腐蚀操作，再进行膨胀操作，可以去除图像中的小噪点和细小的连通区域
-	morphologyEx(tmp, tmp, MORPH_OPEN, kernel);
-	// imshow("tmp", tmp);
-	// waitKey(0);
+	cv::Mat gray8;
+	cv::cvtColor(rgb, gray8, cv::COLOR_BGR2GRAY);
+	cv::Mat1f gray;
+	gray8.convertTo(gray, CV_32F);
 
-	// 剪裁出有条纹的区域
-	auto min = false;
-	for (auto i = 0; i < rows; i++) {
-		for (auto j = 0; j < cols; j++) {
-			if (tmp.at<float>(i, j) == 255) {
-				if (!min) {
-					minX = i;
-					minY = j;
-					min  = true;
-				}
+	auto closeKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+	cv::morphologyEx(gray, gray, cv::MORPH_CLOSE, closeKernel);
+	cv::GaussianBlur(gray, gray, cv::Size(5, 5), 0.0);
 
-				if (j < minY)
-					minY = j;
-				if (i > maxX)
-					maxX = i;
-				if (j > maxY)
-					maxY = j;
-			}
+	cv::Mat1f derivative1 = cv::Mat1f::zeros(gray.size());
+	cv::Mat1f derivative2 = cv::Mat1f::zeros(gray.size());
+
+	const int minDerivativeCol = std::max(bounds.minCol, 1);
+	const int maxDerivativeCol = std::min(bounds.maxCol, gray.cols - 1);
+	for (int r = bounds.minRow; r < bounds.maxRow; ++r) {
+		const auto *grayRow = gray.ptr<float>(r);
+		auto *d1Row         = derivative1.ptr<float>(r);
+		auto *d2Row         = derivative2.ptr<float>(r);
+		for (int c = minDerivativeCol; c < maxDerivativeCol; ++c) {
+			d1Row[c] = grayRow[c + 1] - grayRow[c];
+			d2Row[c] = grayRow[c + 1] + grayRow[c - 1] - 2.0f * grayRow[c];
 		}
 	}
 
-	// 调节阈值，图像分割是为了找到矩形的边界进行搜索
-	minX -= 50;
-	minY -= 50;
-	maxX += 50;
-	maxY += 50;
-	// cout << minX << "     " << minY << "    "<< maxX << "     "<< maxY;
+	const int rowSpan = std::max(0, bounds.maxRow - bounds.minRow);
+	std::vector<std::vector<float>> maxima(rowSpan);
+	std::vector<std::vector<float>> minima(rowSpan);
+	std::vector<std::vector<int>> colorLabels(rowSpan);
 
-	// 对裁剪出来的图像转换为灰度图像,由于是放到了32F的空间里所以显示为全白很正常要转换为8位才能正常看
-	Mat img = Mat::zeros(Size(cols, rows), CV_32FC1);
+	for (int r = bounds.minRow; r < bounds.maxRow; ++r) {
+		auto &rowMaxima = maxima[r - bounds.minRow];
+		auto &rowMinima = minima[r - bounds.minRow];
+		auto &rowColors = colorLabels[r - bounds.minRow];
 
-	for (auto i = minX; i < maxX; i++) {
-		for (auto j = minY; j < maxY; j++) {
-			/*cout << 0.2989 * (int)rgbChannel.at<Vec3b>(i, j)[2] +
-              0.5907 * (int)rgbChannel.at<Vec3b>(i, j)[1] +
-              0.1140 * (int)rgbChannel.at<Vec3b>(i, j)[0] << endl;*/
-			img.at<float>(i, j) =
-			    0.2989 * (int)rgbChannel.at<Vec3b>(i, j)[2] + 0.5907 * (int)rgbChannel.at<Vec3b>(i, j)[1] + 0.1140 * (int)rgbChannel.at<Vec3b>(i, j)[0];
-		}
-	}
-	//  对裁剪出来的图像进行闭运算，填充物体空洞
-	kernel = getStructuringElement(MORPH_RECT, cv::Size(3, 3));
-	morphologyEx(img, img, MORPH_CLOSE, kernel);
+		std::vector<float> tmpMinima;
+		for (int c = bounds.minCol; c + 1 < bounds.maxCol; ++c) {
+			const float d     = derivative1.at<float>(r, c);
+			const float dNext = derivative1.at<float>(r, c + 1);
 
-	GaussianBlur(img, img, Size(5, 5), 0, 0);
-	Mat B = Mat::zeros(cols, rows, CV_8UC1);
+			const float slope = derivative1.at<float>(r, c + 1) - derivative1.at<float>(r, c);
+			if (d > 0.0f && dNext < 0.0f && std::abs(slope) > std::numeric_limits<float>::epsilon()) {
+				const float intercept  = d - slope * static_cast<float>(c);
+				const double zero      = -static_cast<double>(intercept) / static_cast<double>(slope);
+				const double k2        = derivative2.at<float>(r, c + 1) - derivative2.at<float>(r, c);
+				const double b2        = derivative2.at<float>(r, c) - k2 * c;
+				const double curvature = k2 * zero + b2;
 
-	// normalize(img, img, 1.0, 0.0, NORM_MINMAX);//归一到0~1之间
-	// img.convertTo(B, CV_8UC1, 255, 0); //转换为0~255之间的整数
-	// imshow("B", B);//显示
-	// waitKey(0);
-
-	Mat derivative1 = Mat::zeros(Size(cols, rows), CV_32FC1);
-	Mat derivative2 = Mat::zeros(Size(cols, rows), CV_32FC1);
-
-	for (auto i = 0; i < rows; i++) {
-		for (auto j = 1; j < cols - 1; j++) {
-			derivative1.at<float>(i, j) = img.at<float>(i, j + 1) - img.at<float>(i, j);
-			derivative2.at<float>(i, j) = img.at<float>(i, j + 1) + img.at<float>(i, j - 1) - 2 * img.at<float>(i, j);
-		}
-	}
-
-	// 存储亚像素坐标点
-	// 对计算得到的一阶和二阶倒数进行分析，
-	// 每一行极值点保存在maximas（极大值点）， minimax(极小值点）, colorlable ->
-	// 颜色类别
-	vector<vector<float>> maximas(0, vector<float>(0, 0));
-	vector<vector<float>> minimas(0, vector<float>(0, 0));
-	vector<vector<float>> colorLabel(0, vector<float>(0, 0));
-	for (auto i = minX; i < maxX; i++) {
-		maximas.resize(i - minX + 1);
-		minimas.resize(i - minX + 1);
-		colorLabel.resize(i - minX + 1);
-		vector<double> tmpMin;
-		for (auto j = minY; j < maxY; j++) {
-			// cout << i << endl;
-			if (derivative1.at<float>(i, j) > 0 && derivative1.at<float>(i, j + 1) < 0) {
-				double k     = derivative1.at<float>(i, j + 1) - derivative1.at<float>(i, j);
-				double b     = derivative1.at<float>(i, j) - k * j;
-				double zero  = -b / k;
-				double k2    = derivative2.at<float>(i, j + 1) - derivative2.at<float>(i, j);
-				double b2    = derivative2.at<float>(i, j) - k2 * j;
-				double value = k2 * zero + b2;
-				if (value < 0 && lab.at<Vec3b>(i, zero)[0] > 5) {
-					maximas[i - minX].push_back(zero);
-					if (lab.at<Vec3b>(i, zero)[2] < 126) {
-						colorLabel[i - minX].push_back(2); // blue
-					} else {
-						if (lab.at<Vec3b>(i, zero)[1] >= 128) {
-							colorLabel[i - minX].push_back(0); // red
+				if (curvature < 0.0) {
+					const int sampleCol = std::clamp(static_cast<int>(std::lround(zero)), 0, lab.cols - 1);
+					const auto labPixel = lab.at<cv::Vec3b>(r, sampleCol);
+					if (labPixel[0] > 5) {
+						rowMaxima.push_back(static_cast<float>(zero));
+						if (labPixel[2] < 126) {
+							rowColors.push_back(2);
+						} else if (labPixel[1] >= 128) {
+							rowColors.push_back(0);
 						} else {
-							colorLabel[i - minX].push_back(1); // green
+							rowColors.push_back(1);
 						}
 					}
 				}
 			}
 
-			if (derivative1.at<float>(i, j) < 0 && derivative1.at<float>(i, j + 1) > 0) {
-				double k     = derivative1.at<float>(i, j + 1) - derivative1.at<float>(i, j);
-				double b     = derivative1.at<float>(i, j) - k * j;
-				double zero  = -b / k;
-				double k2    = derivative2.at<float>(i, j + 1) - derivative2.at<float>(i, j);
-				double b2    = derivative2.at<float>(i, j) - k2 * j;
-				double value = k2 * zero + b2;
-				if (value > 0) {
-					tmpMin.push_back(zero);
+			if (d < 0.0f && dNext > 0.0f && std::abs(slope) > std::numeric_limits<float>::epsilon()) {
+				const float intercept  = d - slope * static_cast<float>(c);
+				const double zero      = -static_cast<double>(intercept) / static_cast<double>(slope);
+				const double k2        = derivative2.at<float>(r, c + 1) - derivative2.at<float>(r, c);
+				const double b2        = derivative2.at<float>(r, c) - k2 * c;
+				const double curvature = k2 * zero + b2;
+				if (curvature > 0.0) {
+					tmpMinima.push_back(static_cast<float>(zero));
 				}
 			}
 		}
-		if (!tmpMin.empty() && !maximas[i - minX].empty()) {
-			auto pos = 0;
-			for (auto j = 0; j < tmpMin.size() - 1; j++) {
 
-				if (tmpMin[j + 1] < maximas[i - minX][pos]) {
+		if (!tmpMinima.empty() && !rowMaxima.empty()) {
+			std::size_t pos = 0;
+			for (std::size_t idx = 0; idx + 1 < tmpMinima.size() && pos < rowMaxima.size(); ++idx) {
+				if (tmpMinima[idx + 1] < rowMaxima[pos]) {
 					continue;
 				}
-				minimas[i - minX].push_back(tmpMin[j]);
-				pos++;
-				if (pos >= maximas[i - minX].size())
-					break;
+				rowMinima.push_back(tmpMinima[idx]);
+				++pos;
 			}
 		}
 	}
-	// 颜色标签用于将极值点分为不同的类别,
-	// 极小值点的颜色标签与相应的极大值点的颜色标签相同。
-	// cout << minimas.size() << endl;
-	// cout << colorLabel.size() << endl;
 
-	// cout << maximas.size() << endl;
+	const auto deBruijn = deBruijnSequence(3, 4);
+	std::array<double, 81> frequencyMap{ 0.0 };
 
-	// 增加稠密度,暂时可不需要
-	// To do:小波变换
+	const auto encodeSequence = [&](std::size_t offset) {
+		constexpr int base  = 3;
+		constexpr int base2 = base * base;
+		constexpr int base3 = base2 * base;
+		return base3 * deBruijn[offset] + base2 * deBruijn[offset + 1] + base * deBruijn[offset + 2] + deBruijn[offset + 3];
+	};
 
-	//
-	auto db = DeBruijn(3, 4);
-	/*cout << db.size() << endl;*/
-	double map[76]{ 0 };
-
-	//
-	for (auto i = 0; i < 61; i++) {
-		// 对前64个条纹进行编码频率值
-		int index = int(pow(3, 3) * db.at(i) + pow(3, 2) * db.at(i + 1) + 3 * db.at(i + 2) + db.at(i + 3));
-
-		// De
-		// Bruijn序列中每个3-mer在序列中出现的次数。这个公式的来源是一篇名为"Visualization
-		// and analysis of DNA microarrays using R and bioconductor"
-		map[index] = 7.5 + 14 * i; // 对应的频率值,已经开始编码了
-	}
-	Reconstruction(maximas, minimas, colorLabel, hc1, hp2, map);
-
-	cout << coordinate.size() << endl;
-
-	ofstream destFile("../Data/my_result/result.txt",
-	                  ios::out); // 以文本模式打开out.txt备写
-	for (auto i = 0; i < coordinate.size(); i++) {
-		if (i == coordinate.size() - 1) {
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " " << coordinate[i].at<float>(0, 2);
-		} else {
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " " << coordinate[i].at<float>(0, 2)
-			         << endl; // 可以像用cout那样用ofstream对象
-		}
+	for (std::size_t i = 0; i < 61; ++i) {
+		frequencyMap[encodeSequence(i)] = 7.5 + 14.0 * static_cast<double>(i);
 	}
 
-	destFile.close();
-	saveCoordinate();
-	savePly();
+	const auto result = reconstructPoints(maxima, colorLabels, leftProjection, rightProjection, std::span<const double>(frequencyMap), bounds, rgb);
+
+	std::cout << "Reconstructed points: " << result.points.size() << '\n';
+
+	saveTxt("../Data/my_result/result.txt", result);
+	savePcd("../Data/my_result/result.pcd", result);
+	savePly("../Data/my_result/result.ply", result);
+
+	return 0;
 }
