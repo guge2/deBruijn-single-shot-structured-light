@@ -1,78 +1,57 @@
 #include "CameraArguments.h"
 
-CameraArguments* CameraArguments::instance = nullptr;
+CameraArguments *CameraArguments::instance = nullptr;
 
 /**
- * \brief 
+ * \brief
  */
-CameraArguments::CameraArguments()
-{
-	//r12 = cv::Mat::zeros(cv::Size(3, 3), CV_8UC1);
+CameraArguments::CameraArguments() {
+  // r12 = cv::Mat::zeros(cv::Size(3, 3), CV_8UC1);
 }
 
-CameraArguments::CameraArguments(cv::Mat r, cv::Mat t, cv::Mat kc, cv::Mat kp)
-{
-	r12 = r;
-	t12 = t;
-	// Ïà»úÄÚ²Î
-	kc1 = kc;
+CameraArguments::CameraArguments(cv::Mat r, cv::Mat t, cv::Mat kc, cv::Mat kp) {
+  r12 = r;
+  t12 = t;
+  // ç›¸æœºå†…å‚
+  kc1 = kc;
 
-	//Í¶Ó°ÒÇÄÚ²Î
-	kp2 = kp;
-	cv::Mat tmp;
-	hconcat(cv::Mat::eye(3, 3, CV_32FC1),
-		cv::Mat::zeros(cv::Size(1, 3), CV_32FC1), tmp);
+  // æŠ•å½±ä»ªå†…å‚
+  kp2 = kp;
+  cv::Mat tmp;
+  hconcat(cv::Mat::eye(3, 3, CV_32FC1),
+          cv::Mat::zeros(cv::Size(1, 3), CV_32FC1), tmp);
 
-	// HC ¾ØÕó£¬ 
-	hc1 = kc1 * tmp;
+  // HC çŸ©é˜µï¼Œ
+  hc1 = kc1 * tmp;
 
-	// ½«r12ºÍt12.t()Æ´ÔÚÒ»Æğ·Åµ½tmp
-	hconcat(r12, t12.t(), tmp);
-	// Hp¾ØÕó
-	hp2 = kp2 * tmp;
+  // å°†r12å’Œt12.t()æ‹¼åœ¨ä¸€èµ·æ”¾åˆ°tmp
+  hconcat(r12, t12.t(), tmp);
+  // HpçŸ©é˜µ
+  hp2 = kp2 * tmp;
 }
 
-CameraArguments* CameraArguments::getInstance(cv::Mat r, cv::Mat t, cv::Mat kc, cv::Mat kp)
-{
-	if (instance == nullptr) instance = new CameraArguments(r, t, kc, kp);
-	return instance;
+CameraArguments *CameraArguments::getInstance(cv::Mat r, cv::Mat t, cv::Mat kc,
+                                              cv::Mat kp) {
+  if (instance == nullptr)
+    instance = new CameraArguments(r, t, kc, kp);
+  return instance;
 }
 
-CameraArguments* CameraArguments::getInstance()
-{
-	if (instance) return instance;
+CameraArguments *CameraArguments::getInstance() {
+  if (instance)
+    return instance;
 }
 
-CameraArguments::~CameraArguments()
-= default;
+CameraArguments::~CameraArguments() = default;
 
-cv::Mat CameraArguments::getR() const
-{
-	return r12;
-}
+cv::Mat CameraArguments::getR() const { return r12; }
 
-cv::Mat CameraArguments::getT() const
-{
-	return t12;
-}
+cv::Mat CameraArguments::getT() const { return t12; }
 
-cv::Mat CameraArguments::getKc() const
-{
-	return kc1;
-}
+cv::Mat CameraArguments::getKc() const { return kc1; }
 
-cv::Mat CameraArguments::getKp() const
-{
-	return kp2;
-}
+cv::Mat CameraArguments::getKp() const { return kp2; }
 
+cv::Mat CameraArguments::getHc() const { return hc1; }
 
-cv::Mat CameraArguments::getHc() const
-{
-	return hc1;
-}
-
-cv::Mat CameraArguments::getHp() const
-{
-	return hp2;
-}
+cv::Mat CameraArguments::getHp() const { return hp2; }

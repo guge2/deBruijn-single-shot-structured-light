@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 依赖库: OpenCV 4.6.0+, OpenMP
 
 # 查找OpenCV库
+set(OpenCV_DIR $ENV{THIRDPARTY_PATH}/opencv-4.11.0/x64/vc17/lib)  
 find_package(OpenCV REQUIRED)
 if(OpenCV_FOUND)
     message(STATUS "Found OpenCV version: ${OpenCV_VERSION}")
@@ -75,9 +76,8 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/demo/Data
 
 # 打印配置信息
 message(STATUS "CMake configuration completed")
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ compiler: ${CMAKE_CXX_COMPILER}")
-message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
+# message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
 
 # 注意: demo_main 目标需要 cwt 库的实现
 # cwt 是 MATLAB 生成的代码库，包含连续小波变换的实现

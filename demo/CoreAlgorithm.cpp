@@ -1,570 +1,532 @@
 #include "CoreAlgorithm.h"
 
-CoreAlgorithm::CoreAlgorithm(const std::string& path, CameraArguments* cArgs)
-{
-	image = imread(path, IMREAD_COLOR);
-	rows = image.rows;
-	cols = image.cols;
-	split(image, rgbChannel); //b,g,r
+CoreAlgorithm::CoreAlgorithm(const std::string &path, CameraArguments *cArgs) {
+  image = imread(path, IMREAD_COLOR);
+  rows = image.rows;
+  cols = image.cols;
+  split(image, rgbChannel); // b,g,r
 
+  // è½¬æ¢ä¸ºhsvç©ºé—´ï¼Œ Hä»£è¡¨è¡¨ç¤ºå…‰è°±ä¸Šçš„é¢œè‰²ï¼Œ
+  // Sè¡¨ç¤ºé¥±å’Œåº¦ï¼Œå‘é¢œè‰²ä¸­æ·»åŠ ç™½è‰²ï¼Œæ·»åŠ çš„è¶Šå¤šè¶Šä¸é¥±å’Œï¼›vè¡¨ç¤ºæ˜åº¦ï¼Œè¡¨ç¤ºå¾€é¢œè‰²é‡ŒåŠ é»‘è‰²ï¼Œæ˜åº¦è¶Šä½è¶Šæš—ã€‚
+  hsv = image.clone();
+  cvtColor(image, hsv, COLOR_BGR2HSV, 3);
+  split(hsv, hsvChannel);
 
-	// ×ª»»Îªhsv¿Õ¼ä£¬ H´ú±í±íÊ¾¹âÆ×ÉÏµÄÑÕÉ«£¬ S±íÊ¾±¥ºÍ¶È£¬ÏòÑÕÉ«ÖĞÌí¼Ó°×É«£¬Ìí¼ÓµÄÔ½¶àÔ½²»±¥ºÍ£»v±íÊ¾Ã÷¶È£¬±íÊ¾ÍùÑÕÉ«Àï¼ÓºÚÉ«£¬Ã÷¶ÈÔ½µÍÔ½°µ¡£
-	hsv = image.clone();
-	cvtColor(image, hsv, COLOR_BGR2HSV, 3);
-	split(hsv, hsvChannel);
-
-	// ×ª»»ÎªLab¿Õ¼ä
-	cvtColor(image, lab, COLOR_BGR2Lab);
-	cArg = cArgs;
+  // è½¬æ¢ä¸ºLabç©ºé—´
+  cvtColor(image, lab, COLOR_BGR2Lab);
+  cArg = cArgs;
 }
 
-CoreAlgorithm::~CoreAlgorithm()
-= default;
+CoreAlgorithm::~CoreAlgorithm() = default;
 
-// ×ÔÊÊÓ¦ãĞÖµ·Ö¸î£¬¶şÖµ»¯ÎªÁ½¸öÑÕÉ«
-Mat CoreAlgorithm::OtsuAlgThreshold(Mat & src)
-{
-	if (src.channels() != 1)
-	{
-		cout << "Please input Gray-src!" << endl;
-	}
+// è‡ªé€‚åº”é˜ˆå€¼åˆ†å‰²ï¼ŒäºŒå€¼åŒ–ä¸ºä¸¤ä¸ªé¢œè‰²
+Mat CoreAlgorithm::OtsuAlgThreshold(Mat &src) {
+  if (src.channels() != 1) {
+    cout << "Please input Gray-src!" << endl;
+  }
 
-	auto T = 0;
-	double varValue = 0;
-	double w0 = 0;
-	double w1 = 0;
-	double u0 = 0;
-	double u1 = 0;
-	double Histogram[256] = { 0 };
-	uchar* data = src.data;
+  auto T = 0;
+  double varValue = 0;
+  double w0 = 0;
+  double w1 = 0;
+  double u0 = 0;
+  double u1 = 0;
+  double Histogram[256] = {0};
+  uchar *data = src.data;
 
-	double totalNum = src.rows * src.cols;
+  double totalNum = src.rows * src.cols;
 
-	for (auto i = 0; i < src.rows; i++)
-	{
-		for (auto j = 0; j < src.cols; j++)
-		{
-			if (src.at<float>(i, j) != 0) Histogram[data[i * src.step + j]]++;
-		}
-	}
+  for (auto i = 0; i < src.rows; i++) {
+    for (auto j = 0; j < src.cols; j++) {
+      if (src.at<float>(i, j) != 0)
+        Histogram[data[i * src.step + j]]++;
+    }
+  }
 
-	auto minpos = 0, maxpos = 0;
-	for (auto i = 0; i < 255; i++)
-	{
-		if (Histogram[i] != 0)
-		{
-			minpos = i;
-			break;
-		}
-	}
+  auto minpos = 0, maxpos = 0;
+  for (auto i = 0; i < 255; i++) {
+    if (Histogram[i] != 0) {
+      minpos = i;
+      break;
+    }
+  }
 
-	for (auto i = 255; i > 0; i--)
-	{
-		if (Histogram[i] != 0)
-		{
-			maxpos = i;
-			break;
-		}
-	}
+  for (auto i = 255; i > 0; i--) {
+    if (Histogram[i] != 0) {
+      maxpos = i;
+      break;
+    }
+  }
 
-	for (auto i = minpos; i <= maxpos; i++)
-	{
-		w1 = 0;
-		u1 = 0;
-		w0 = 0;
-		u0 = 0;
-		for (auto j = 0; j <= i; j++)
-		{
-			w1 += Histogram[j];
-			u1 += j * Histogram[j];
-		}
-		if (w1 == 0)
-		{
-			break;
-		}
-		u1 = u1 / w1;
-		w1 = w1 / totalNum;
-		for (auto k = i + 1; k < 255; k++)
-		{
-			w0 += Histogram[k];
-			u0 += k * Histogram[k];
-		}
-		if (w0 == 0)
-		{
-			break;
-		}
-		u0 = u0 / w0;
-		w0 = w0 / totalNum;
+  for (auto i = minpos; i <= maxpos; i++) {
+    w1 = 0;
+    u1 = 0;
+    w0 = 0;
+    u0 = 0;
+    for (auto j = 0; j <= i; j++) {
+      w1 += Histogram[j];
+      u1 += j * Histogram[j];
+    }
+    if (w1 == 0) {
+      break;
+    }
+    u1 = u1 / w1;
+    w1 = w1 / totalNum;
+    for (auto k = i + 1; k < 255; k++) {
+      w0 += Histogram[k];
+      u0 += k * Histogram[k];
+    }
+    if (w0 == 0) {
+      break;
+    }
+    u0 = u0 / w0;
+    w0 = w0 / totalNum;
 
-		auto varValueI = w0 * w1 * (u1 - u0) * (u1 - u0);
-		if (varValue < varValueI)
-		{
-			varValue = varValueI;
-			T = i;
-		}
-	}
-	//    cout << T << endl;
-	Mat dst = src.clone();
-	for (auto i = 0; i < src.rows; i++)
-		for (auto j = 0; j < src.cols; j++)
-			dst.at<float>(i, j) = src.at<float>(i, j) > T ? 255 : 0;
-	return dst;
+    auto varValueI = w0 * w1 * (u1 - u0) * (u1 - u0);
+    if (varValue < varValueI) {
+      varValue = varValueI;
+      T = i;
+    }
+  }
+  //    cout << T << endl;
+  Mat dst = src.clone();
+  for (auto i = 0; i < src.rows; i++)
+    for (auto j = 0; j < src.cols; j++)
+      dst.at<float>(i, j) = src.at<float>(i, j) > T ? 255 : 0;
+  return dst;
 }
 
+// å¯¹ä¸€ä¸‹å¾·å¸ƒé²å› åºåˆ—æ˜¯å¦æ­£ç¡®
+vector<int> CoreAlgorithm::DeBruijn(int k, int n) {
+  std::vector<byte> a(k * n, 0);
+  std::vector<byte> seq;
 
-// ¶ÔÒ»ÏÂµÂ²¼Â³ÒòĞòÁĞÊÇ·ñÕıÈ·
-vector<int> CoreAlgorithm::DeBruijn(int k, int n)
-{
-	std::vector<byte> a(k * n, 0);
-	std::vector<byte> seq;
+  std::function<void(int, int)> db;
+  db = [&](int t, int p) {
+    if (t > n) {
+      if (n % p == 0) {
+        for (int i = 1; i < p + 1; i++) {
+          seq.push_back(a[i]);
+        }
+      }
+    } else {
+      a[t] = a[t - p];
+      db(t + 1, p);
+      auto j = a[t - p] + 1;
+      while (j < k) {
+        a[t] = j & 0xFF;
+        db(t + 1, t);
+        j++;
+      }
+    }
+  };
 
-	std::function<void(int, int)> db;
-	db = [&](int t, int p)
-	{
-		if (t > n)
-		{
-			if (n % p == 0)
-			{
-				for (int i = 1; i < p + 1; i++)
-				{
-					seq.push_back(a[i]);
-				}
-			}
-		}
-		else
-		{
-			a[t] = a[t - p];
-			db(t + 1, p);
-			auto j = a[t - p] + 1;
-			while (j < k)
-			{
-				a[t] = j & 0xFF;
-				db(t + 1, t);
-				j++;
-			}
-		}
-	};
+  db(1, 1);
+  std::string buf;
+  for (auto i : seq) {
+    buf.push_back('0' + i);
+  }
 
-	db(1, 1);
-	std::string buf;
-	for (auto i : seq)
-	{
-		buf.push_back('0' + i);
-	}
-
-	std::vector<int> res;
-	std::string tmp = buf + buf.substr(0, n - 1);
-	for (char i : tmp)
-	{
-		res.push_back(i - '0');
-	}
-	return res;
+  std::vector<int> res;
+  std::string tmp = buf + buf.substr(0, n - 1);
+  for (char i : tmp) {
+    res.push_back(i - '0');
+  }
+  return res;
 }
 
-void CoreAlgorithm::Reconstruction(vector<vector<float>> maximas, vector<vector<float>> minimas,
-	vector<vector<float>> colorLabel, vector<vector<float>> phases, const Mat & Hc1,
-	Mat Hp2, const double* map)
-{
-	for (auto i = 0; i < maximas.size(); i++)
-	{
-		// Èç¹ûÃ»ÓĞ¼«´óÖµ¾Í¹ıÂË
-		if (maximas[i].empty())continue;
-		// ÒòÎªµ±¾Ö²¿¼«´óÖµÊı¾İÊıÁ¿Ğ¡ÓÚ4Ê±£¬ÎŞ·¨¼ÆËã³ö¸ÃµãµÄÑÕÉ«±êÇ©£¬Òò´Ë¸ÃµãÎŞ·¨ÓÃÓÚºóĞøµÄÈıÎ¬×ø±ê¼ÆËã£¬ĞèÒª±»¹ıÂËµô¡£
-		if (maximas[i].size() < 4)continue;
-		auto mark = 0;
-		//        double pc = 0;
-		for (auto j = 0; j < maximas[i].size(); j++)
-		{
-			double position;
-			if (j < maximas[i].size() - 3)
-			{
-				position = map[int(pow(3, 3) * colorLabel[i].at(j) + pow(3, 2) * colorLabel[i].at(j + 1) +
-					3 * colorLabel[i].at(j + 2) + colorLabel[i].at(j + 3))];
-			}
-			else
-			{
-				auto fix = maximas[i].size() - 4;
-				auto index = j - maximas[i].size() + 4;
-				position = map[int(pow(3, 3) * colorLabel[i].at(fix) + pow(3, 2) * colorLabel[i].at(fix + 1) +
-					3 * colorLabel[i].at(fix + 2) + colorLabel[i].at(fix + 3))] + 14.0 * index;
-			}
+void CoreAlgorithm::Reconstruction(vector<vector<float>> maximas,
+                                   vector<vector<float>> minimas,
+                                   vector<vector<float>> colorLabel,
+                                   vector<vector<float>> phases, const Mat &Hc1,
+                                   Mat Hp2, const double *map) {
+  for (auto i = 0; i < maximas.size(); i++) {
+    // å¦‚æœæ²¡æœ‰æå¤§å€¼å°±è¿‡æ»¤
+    if (maximas[i].empty())
+      continue;
+    // å› ä¸ºå½“å±€éƒ¨æå¤§å€¼æ•°æ®æ•°é‡å°äº4æ—¶ï¼Œæ— æ³•è®¡ç®—å‡ºè¯¥ç‚¹çš„é¢œè‰²æ ‡ç­¾ï¼Œå› æ­¤è¯¥ç‚¹æ— æ³•ç”¨äºåç»­çš„ä¸‰ç»´åæ ‡è®¡ç®—ï¼Œéœ€è¦è¢«è¿‡æ»¤æ‰ã€‚
+    if (maximas[i].size() < 4)
+      continue;
+    auto mark = 0;
+    //        double pc = 0;
+    for (auto j = 0; j < maximas[i].size(); j++) {
+      double position;
+      if (j < maximas[i].size() - 3) {
+        position =
+            map[int(pow(3, 3) * colorLabel[i].at(j) +
+                    pow(3, 2) * colorLabel[i].at(j + 1) +
+                    3 * colorLabel[i].at(j + 2) + colorLabel[i].at(j + 3))];
+      } else {
+        auto fix = maximas[i].size() - 4;
+        auto index = j - maximas[i].size() + 4;
+        position = map[int(pow(3, 3) * colorLabel[i].at(fix) +
+                           pow(3, 2) * colorLabel[i].at(fix + 1) +
+                           3 * colorLabel[i].at(fix + 2) +
+                           colorLabel[i].at(fix + 3))] +
+                   14.0 * index;
+      }
 
-			Mat matrix = Mat::zeros(cv::Size(3, 3), CV_32FC1);
-			matrix.row(0) = Hc1(Rect(0, 2, 3, 1)) * (maximas[i][j]) - Hc1(Rect(0, 0, 3, 1));
-			matrix.row(1) = Hc1(Rect(0, 2, 3, 1)) * (float(i + minX)) - Hc1(Rect(0, 1, 3, 1));
-			matrix.row(2) = Hp2(Rect(0, 2, 3, 1)) * position - Hp2(Rect(0, 0, 3, 1));
-			Mat tang = Mat::zeros(cv::Size(3, 1), CV_32FC1);
-			Mat b = Mat::zeros(cv::Size(1, 3), CV_32FC1);
-			b.row(0) = Hc1.at<float>(0, 3) - Hc1.at<float>(2, 3) * (maximas[i][j]);
-			b.row(1) = Hc1.at<float>(1, 3) - Hc1.at<float>(2, 3) * (float(i + minX));
-			b.row(2) = Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) * position;
-			solve(matrix, b, tang);
+      Mat matrix = Mat::zeros(cv::Size(3, 3), CV_32FC1);
+      matrix.row(0) =
+          Hc1(Rect(0, 2, 3, 1)) * (maximas[i][j]) - Hc1(Rect(0, 0, 3, 1));
+      matrix.row(1) =
+          Hc1(Rect(0, 2, 3, 1)) * (float(i + minX)) - Hc1(Rect(0, 1, 3, 1));
+      matrix.row(2) = Hp2(Rect(0, 2, 3, 1)) * position - Hp2(Rect(0, 0, 3, 1));
+      Mat tang = Mat::zeros(cv::Size(3, 1), CV_32FC1);
+      Mat b = Mat::zeros(cv::Size(1, 3), CV_32FC1);
+      b.row(0) = Hc1.at<float>(0, 3) - Hc1.at<float>(2, 3) * (maximas[i][j]);
+      b.row(1) = Hc1.at<float>(1, 3) - Hc1.at<float>(2, 3) * (float(i + minX));
+      b.row(2) = Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) * position;
+      solve(matrix, b, tang);
 
-			if (tang.at<float>(2, 0) > 750 && tang.at<float>(2, 0) < 1500)
-			{
-				coordinate.push_back(tang.t());
+      if (tang.at<float>(2, 0) > 750 && tang.at<float>(2, 0) < 1500) {
+        coordinate.push_back(tang.t());
 
-				int r = (int)rgbChannel[2].at<uchar>(i + minX, maximas[i][j]),
-					g = rgbChannel[1].at<uchar>(i + minX, maximas[i][j]),
-					b = rgbChannel[0].at<uchar>(i + minX, maximas[i][j]);
-				int rgb = ((int)r << 16 | (int)g << 8 | (int)b);
-				float frgb = *reinterpret_cast<float*>(&rgb);
-				color.push_back(frgb);
-			}
-			//            if (i == 200)cout << maximas[i][j] << "," << 0 << "," << position << endl;
-			if (phases[i].empty())continue;
-			auto pi = false;
-			auto start = minimas[i][0];
-			if (start > maximas[i][j]) continue;
-			if (j == 0)
-			{
-				for (auto k = mark; k + start < maximas[i][j]; k++)
-				{
-					if ((start + k) < maximas[i][j] && phases[i][k] < 0)continue;
-					if ((start + k) < maximas[i][j] && phases[i][k] > 0)
-					{
-						if (maximas[i][j] - (start + k) < 1)
-						{
-							continue;
-						}
-						mark = k + 1;
-					}
-					else if ((start + k) > maximas[i][j]) break;
-				}
-			}
+        int r = (int)rgbChannel[2].at<uchar>(i + minX, maximas[i][j]),
+            g = rgbChannel[1].at<uchar>(i + minX, maximas[i][j]),
+            b = rgbChannel[0].at<uchar>(i + minX, maximas[i][j]);
+        int rgb = ((int)r << 16 | (int)g << 8 | (int)b);
+        float frgb = *reinterpret_cast<float *>(&rgb);
+        color.push_back(frgb);
+      }
+      //            if (i == 200)cout << maximas[i][j] << "," << 0 << "," <<
+      //            position << endl;
+      if (phases[i].empty())
+        continue;
+      auto pi = false;
+      auto start = minimas[i][0];
+      if (start > maximas[i][j])
+        continue;
+      if (j == 0) {
+        for (auto k = mark; k + start < maximas[i][j]; k++) {
+          if ((start + k) < maximas[i][j] && phases[i][k] < 0)
+            continue;
+          if ((start + k) < maximas[i][j] && phases[i][k] > 0) {
+            if (maximas[i][j] - (start + k) < 1) {
+              continue;
+            }
+            mark = k + 1;
+          } else if ((start + k) > maximas[i][j])
+            break;
+        }
+      }
 
-			for (auto k = mark; k < phases[i].size() - 1; k++)
-			{
-				mark++;
-				double newPosition;
-				if ((start + k) < maximas[i][j] && phases[i][k] < 0) newPosition = position + phases[i][k];
-				else if ((maximas[i][j] - (start + k)) > 1 && phases[i][k] > 0)
-					newPosition = position + phases[i][k] - 7;
-				else if ((start + k) > maximas[i][j] && phases[i][k] > 0)newPosition = position + phases[i][k];
-				else if (((start + k) - maximas[i][j]) > 1 && phases[i][k] < 0)
-					newPosition = position + phases[i][k] + 7;
-				else continue;
+      for (auto k = mark; k < phases[i].size() - 1; k++) {
+        mark++;
+        double newPosition;
+        if ((start + k) < maximas[i][j] && phases[i][k] < 0)
+          newPosition = position + phases[i][k];
+        else if ((maximas[i][j] - (start + k)) > 1 && phases[i][k] > 0)
+          newPosition = position + phases[i][k] - 7;
+        else if ((start + k) > maximas[i][j] && phases[i][k] > 0)
+          newPosition = position + phases[i][k];
+        else if (((start + k) - maximas[i][j]) > 1 && phases[i][k] < 0)
+          newPosition = position + phases[i][k] + 7;
+        else
+          continue;
 
-				matrix.row(0) = Hc1(Rect(0, 2, 3, 1)) * (start + k) - Hc1(Rect(0, 0, 3, 1));
-				matrix.row(2) = Hp2(Rect(0, 2, 3, 1)) * newPosition - Hp2(Rect(0, 0, 3, 1));
-				b.row(0) = Hc1.at<float>(0, 3) - Hc1.at<float>(2, 3) * (start + k);
-				b.row(2) = Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) * newPosition;
-				solve(matrix, b, tang);
-				if (tang.at<float>(2, 0) > 750 && tang.at<float>(2, 0) < 1500)
-				{
-					coordinate.push_back(tang.t());
-					int r = (int)rgbChannel[2].at<uchar>(i + minX, (start + k)),
-						g = rgbChannel[1].at<uchar>(i + minX, (start + k)),
-						b = rgbChannel[0].at<uchar>(i + minX, (start + k));
-					int rgb = ((int)r << 16 | (int)g << 8 | (int)b);
-					float frgb = *reinterpret_cast<float*>(&rgb);
-					color.push_back(frgb);
-				}
+        matrix.row(0) =
+            Hc1(Rect(0, 2, 3, 1)) * (start + k) - Hc1(Rect(0, 0, 3, 1));
+        matrix.row(2) =
+            Hp2(Rect(0, 2, 3, 1)) * newPosition - Hp2(Rect(0, 0, 3, 1));
+        b.row(0) = Hc1.at<float>(0, 3) - Hc1.at<float>(2, 3) * (start + k);
+        b.row(2) = Hp2.at<float>(0, 3) - Hp2.at<float>(2, 3) * newPosition;
+        solve(matrix, b, tang);
+        if (tang.at<float>(2, 0) > 750 && tang.at<float>(2, 0) < 1500) {
+          coordinate.push_back(tang.t());
+          int r = (int)rgbChannel[2].at<uchar>(i + minX, (start + k)),
+              g = rgbChannel[1].at<uchar>(i + minX, (start + k)),
+              b = rgbChannel[0].at<uchar>(i + minX, (start + k));
+          int rgb = ((int)r << 16 | (int)g << 8 | (int)b);
+          float frgb = *reinterpret_cast<float *>(&rgb);
+          color.push_back(frgb);
+        }
 
-				if ((start + k) > maximas[i][j] && !pi && phases[i][k] > 0) pi = true;
+        if ((start + k) > maximas[i][j] && !pi && phases[i][k] > 0)
+          pi = true;
 
-				if ((start + k) > maximas[i][j] && phases[i][k] < 0 && phases[i][k + 1] > 0 && pi)break;
-
-			}
-
-		}
-	}
+        if ((start + k) > maximas[i][j] && phases[i][k] < 0 &&
+            phases[i][k + 1] > 0 && pi)
+          break;
+      }
+    }
+  }
 }
 
+void CoreAlgorithm::run() {
+  // å»é™¤èƒŒæ™¯
+  ///  è¿™æ®µä»£ç ä½¿ç”¨RGBé¢œè‰²æ¨¡å‹åˆ›å»ºä¸€ä¸ªæ©ç çŸ©é˜µï¼Œç”¨äºæ£€æµ‹å›¾åƒä¸­æ¯ä¸ªåƒç´ çš„ä¸»è¦é¢œè‰²ã€‚å®ƒéå†å›¾åƒçš„æ¯ä¸ªåƒç´ ï¼Œå¹¶æ¯”è¾ƒçº¢ã€ç»¿ã€è“ä¸‰ä¸ªé¢œè‰²é€šé“çš„å¼ºåº¦å€¼ã€‚
+  Mat mask = Mat::zeros(Size(cols, rows), CV_32FC1);
+  for (auto i = 0; i < rows; i++) {
+    for (auto j = 0; j < cols; j++) {
+      mask.at<float>(i, j) = (int)rgbChannel[0].at<uchar>(i, j) >
+                                     (int)rgbChannel[1].at<uchar>(i, j)
+                                 ? ((int)rgbChannel[0].at<uchar>(i, j) >
+                                            (int)rgbChannel[2].at<uchar>(i, j)
+                                        ? (int)rgbChannel[0].at<uchar>(i, j)
+                                        : (int)rgbChannel[2].at<uchar>(i, j))
+                                 : ((int)rgbChannel[1].at<uchar>(i, j) >
+                                            (int)rgbChannel[2].at<uchar>(i, j)
+                                        ? (int)rgbChannel[1].at<uchar>(i, j)
+                                        : (int)rgbChannel[2].at<uchar>(i, j));
+    }
+  }
 
-void CoreAlgorithm::run()
-{
-	// È¥³ı±³¾°
-	///  Õâ¶Î´úÂëÊ¹ÓÃRGBÑÕÉ«Ä£ĞÍ´´½¨Ò»¸öÑÚÂë¾ØÕó£¬ÓÃÓÚ¼ì²âÍ¼ÏñÖĞÃ¿¸öÏñËØµÄÖ÷ÒªÑÕÉ«¡£Ëü±éÀúÍ¼ÏñµÄÃ¿¸öÏñËØ£¬²¢±È½Ïºì¡¢ÂÌ¡¢À¶Èı¸öÑÕÉ«Í¨µÀµÄÇ¿¶ÈÖµ¡£
-	Mat mask = Mat::zeros(Size(cols, rows), CV_32FC1);
-	for (auto i = 0; i < rows; i++)
-	{
-		for (auto j = 0; j < cols; j++)
-		{
-			mask.at<float>(i, j) = (int)rgbChannel[0].at<uchar>(i, j) > (int)rgbChannel[1].at<uchar>(i, j)
-				? (
-					(int)rgbChannel[0].at<uchar>(i, j) > (int)rgbChannel[2].at<uchar>(i, j)
-					? (int)rgbChannel[0].at<uchar>(i, j)
-					: (int)rgbChannel[2].at<uchar>(i, j))
-				: (
-					(int)rgbChannel[1].at<uchar>(i, j) > (int)rgbChannel[2].at<uchar>(i, j)
-					? (int)rgbChannel[1].at<uchar>(i, j)
-					: (int)rgbChannel[2].at<uchar>(i, j));
-		}
-	}
+  //
+  tmp = OtsuAlgThreshold(mask);
 
-	// 
-	tmp = OtsuAlgThreshold(mask);
+  // ç”¨äºå›¾åƒå¤„ç†ä¸­çš„å½¢æ€å­¦æ“ä½œï¼Œå¦‚è†¨èƒ€å’Œè…èš€
+  auto kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
 
-	// ÓÃÓÚÍ¼Ïñ´¦ÀíÖĞµÄĞÎÌ¬Ñ§²Ù×÷£¬ÈçÅòÕÍºÍ¸¯Ê´
-	auto kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+  // å¼€è¿ç®—æ˜¯æŒ‡å…ˆè¿›è¡Œè…èš€æ“ä½œï¼Œå†è¿›è¡Œè†¨èƒ€æ“ä½œï¼Œå¯ä»¥å»é™¤å›¾åƒä¸­çš„å°å™ªç‚¹å’Œç»†å°çš„è¿é€šåŒºåŸŸ
+  morphologyEx(tmp, tmp, MORPH_OPEN, kernel);
 
-	// ¿ªÔËËãÊÇÖ¸ÏÈ½øĞĞ¸¯Ê´²Ù×÷£¬ÔÙ½øĞĞÅòÕÍ²Ù×÷£¬¿ÉÒÔÈ¥³ıÍ¼ÏñÖĞµÄĞ¡ÔëµãºÍÏ¸Ğ¡µÄÁ¬Í¨ÇøÓò
-	morphologyEx(tmp, tmp, MORPH_OPEN, kernel);
+  // å›¾åƒè£å‰ª å°†æœ€å°åæ ‡çš„Xå’ŒYå€¼åˆ†åˆ«å‡å»50ï¼Œå°†æœ€å¤§åæ ‡çš„Xå’ŒYå€¼åˆ†åˆ«åŠ ä¸Š50ã€‚
+  // è¿™äº›æ“ä½œå¯ä»¥å°†å›¾åƒè£å‰ªåŒºåŸŸå‘å¤–æ‰©å±•ä¸€å®šæ•°é‡çš„åƒç´ ï¼Œä»¥ç¡®ä¿è£å‰ªåçš„å›¾åƒåŒ…å«ç›®æ ‡ç‰©ä½“çš„å®Œæ•´è½®å»“ã€‚
 
+  auto min = false;
+  for (auto i = 0; i < rows; i++) {
+    for (auto j = 0; j < cols; j++) {
+      if (tmp.at<float>(i, j) == 255) {
+        if (!min) {
+          minX = i;
+          minY = j;
+          min = true;
+        }
 
+        if (j < minY)
+          minY = j;
+        if (i > maxX)
+          maxX = i;
+        if (j > maxY)
+          maxY = j;
+      }
+    }
+  }
 
-	// Í¼Ïñ²Ã¼ô ½«×îĞ¡×ø±êµÄXºÍYÖµ·Ö±ğ¼õÈ¥50£¬½«×î´ó×ø±êµÄXºÍYÖµ·Ö±ğ¼ÓÉÏ50¡£
-	//ÕâĞ©²Ù×÷¿ÉÒÔ½«Í¼Ïñ²Ã¼ôÇøÓòÏòÍâÀ©Õ¹Ò»¶¨ÊıÁ¿µÄÏñËØ£¬ÒÔÈ·±£²Ã¼ôºóµÄÍ¼Ïñ°üº¬Ä¿±êÎïÌåµÄÍêÕûÂÖÀª¡£
+  // è°ƒèŠ‚é˜ˆå€¼
+  minX -= 50;
+  minY -= 50;
+  maxX += 50;
+  maxY += 50;
 
-	auto min = false;
-	for (auto i = 0; i < rows; i++)
-	{
-		for (auto j = 0; j < cols; j++)
-		{
-			if (tmp.at<float>(i, j) == 255)
-			{
-				if (!min)
-				{
-					minX = i;
-					minY = j;
-					min = true;
-				}
+  // å¯¹è£å‰ªå‡ºæ¥çš„å›¾åƒè½¬æ¢ä¸ºç°åº¦å›¾åƒ
+  Mat img = Mat::zeros(Size(cols, rows), CV_32FC1);
+  for (auto i = minX; i < maxX; i++) {
+    for (auto j = minY; j < maxY; j++) {
+      img.at<float>(i, j) = 0.2989 * (int)rgbChannel.at(2).at<uchar>(i, j) +
+                            0.5907 * (int)rgbChannel.at(1).at<uchar>(i, j) +
+                            0.1140 * (int)rgbChannel.at(0).at<uchar>(i, j);
+    }
+  }
 
-				if (j < minY) minY = j;
-				if (i > maxX) maxX = i;
-				if (j > maxY) maxY = j;
-			}
-		}
-	}
+  //  å¯¹è£å‰ªå‡ºæ¥çš„å›¾åƒè¿›è¡Œé—­è¿ç®—ï¼Œå¡«å……ç‰©ä½“ç©ºæ´
+  kernel = getStructuringElement(MORPH_RECT, cv::Size(3, 3));
+  morphologyEx(img, img, MORPH_CLOSE, kernel);
 
-	// µ÷½ÚãĞÖµ
-	minX -= 50;
-	minY -= 50;
-	maxX += 50;
-	maxY += 50;
+  GaussianBlur(img, img, Size(5, 5), 0, 0);
 
-	// ¶Ô²Ã¼ô³öÀ´µÄÍ¼Ïñ×ª»»Îª»Ò¶ÈÍ¼Ïñ
-	Mat img = Mat::zeros(Size(cols, rows), CV_32FC1);
-	for (auto i = minX; i < maxX; i++)
-	{
-		for (auto j = minY; j < maxY; j++)
-		{
-			img.at<float>(i, j) = 0.2989 * (int)rgbChannel.at(2).at<uchar>(i, j) +
-				0.5907 * (int)rgbChannel.at(1).at<uchar>(i, j) +
-				0.1140 * (int)rgbChannel.at(0).at<uchar>(i, j);
-		}
-	}
+  Mat derivative1 = Mat::zeros(Size(cols, rows), CV_32FC1);
+  Mat derivative2 = Mat::zeros(Size(cols, rows), CV_32FC1);
 
-	//  ¶Ô²Ã¼ô³öÀ´µÄÍ¼Ïñ½øĞĞ±ÕÔËËã£¬Ìî³äÎïÌå¿Õ¶´
-	kernel = getStructuringElement(MORPH_RECT, cv::Size(3, 3));
-	morphologyEx(img, img, MORPH_CLOSE, kernel);
+  for (auto i = 0; i < rows; i++) {
+    for (auto j = 1; j < cols - 1; j++) {
+      derivative1.at<float>(i, j) =
+          img.at<float>(i, j + 1) - img.at<float>(i, j);
+      derivative2.at<float>(i, j) = img.at<float>(i, j + 1) +
+                                    img.at<float>(i, j - 1) -
+                                    2 * img.at<float>(i, j);
+    }
+  }
 
-	GaussianBlur(img, img, Size(5, 5), 0, 0);
+  // å¯¹è®¡ç®—å¾—åˆ°çš„ä¸€é˜¶å’ŒäºŒé˜¶å€’æ•°è¿›è¡Œåˆ†æï¼Œ
+  // æ¯ä¸€è¡Œæå€¼ç‚¹ä¿å­˜åœ¨maximasï¼ˆæå¤§å€¼ç‚¹ï¼‰ï¼Œ minimax(æå°å€¼ç‚¹ï¼‰, colorlable ->
+  // é¢œè‰²ç±»åˆ«
+  vector<vector<float>> maximas(0, vector<float>(0, 0));
+  vector<vector<float>> minimas(0, vector<float>(0, 0));
 
-	Mat derivative1 = Mat::zeros(Size(cols, rows), CV_32FC1);
-	Mat derivative2 = Mat::zeros(Size(cols, rows), CV_32FC1);
+  // color label
+  // ååº”äº†åœ¨xçš„ä¸€å®šèŒƒå›´å†…ï¼Œå³ä¸€å®šå®½åº¦çš„é¢œè‰²æ˜¯ä»€ä¹ˆï¼Œç»™è¿™ä¸€åˆ—æ‰“èµäº†æ ‡ç­¾
+  vector<vector<float>> colorLabel(0, vector<float>(0, 0));
+  for (auto i = minX; i < maxX; i++) {
+    maximas.resize(i - minX + 1);
+    minimas.resize(i - minX + 1);
+    colorLabel.resize(i - minX + 1);
+    vector<double> tmpMin;
+    for (auto j = minY; j < maxY; j++) {
+      // cout << i << endl;
 
-	for (auto i = 0; i < rows; i++)
-	{
-		for (auto j = 1; j < cols - 1; j++)
-		{
-			derivative1.at<float>(i, j) = img.at<float>(i, j + 1) - img.at<float>(i, j);
-			derivative2.at<float>(i, j) = img.at<float>(i, j + 1) + img.at<float>(i, j - 1) - 2 * img.at<float>(i, j);
-		}
-	}
+      // å¦‚æœç”±æ­£å˜è´Ÿ
+      if (derivative1.at<float>(i, j) > 0 &&
+          derivative1.at<float>(i, j + 1) < 0) {
+        double k = derivative1.at<float>(i, j + 1) -
+                   derivative1.at<float>(i, j); // å‰ä¸€åˆ—å‡å»åä¸€åˆ—
+        double b = derivative1.at<float>(i, j) - k * j;
+        double zero = -b / k;
+        double k2 =
+            derivative2.at<float>(i, j + 1) - derivative2.at<float>(i, j);
+        double b2 = derivative2.at<float>(i, j) - k2 * j;
+        double value = k2 * zero + b2;
 
+        // å¦‚æœvalueå°äºé›¶ä¸”é¢œè‰²ç±»åˆ«ä¸ºè“è‰²ï¼Œåˆ™å°†è¯¥ç‚¹è®°å½•åœ¨maximaså‘é‡ä¸­
+        if (value < 0 && lab.at<Vec3b>(i, zero)[0] > 5) {
+          maximas[i - minX].push_back(zero);
+          if (lab.at<Vec3b>(i, zero)[2] < 126) {
+            colorLabel[i - minX].push_back(2); // blue
+          } else {
+            if (lab.at<Vec3b>(i, zero)[1] >= 128) {
+              colorLabel[i - minX].push_back(0); // red
+            } else {
+              colorLabel[i - minX].push_back(1); // green
+            }
+          }
+        }
+      }
 
+      // æ£€æµ‹ æå°å€¼ç‚¹
+      if (derivative1.at<float>(i, j) < 0 &&
+          derivative1.at<float>(i, j + 1) > 0) {
+        double k =
+            derivative1.at<float>(i, j + 1) - derivative1.at<float>(i, j);
+        double b = derivative1.at<float>(i, j) - k * j;
 
-	// ¶Ô¼ÆËãµÃµ½µÄÒ»½×ºÍ¶ş½×µ¹Êı½øĞĞ·ÖÎö£¬ Ã¿Ò»ĞĞ¼«Öµµã±£´æÔÚmaximas£¨¼«´óÖµµã£©£¬ minimax(¼«Ğ¡Öµµã£©, colorlable -> ÑÕÉ«Àà±ğ
-	vector<vector<float>> maximas(0, vector<float>(0, 0));
-	vector<vector<float>> minimas(0, vector<float>(0, 0));
+        //  ä¸€é˜¶å¯¼æ•°ä¸º0çš„ç‚¹ï¼Œä¸ºäºŒé˜¶å¯¼æ•°æå€¼ç‚¹
+        double zero = -b / k;
+        double k2 =
+            derivative2.at<float>(i, j + 1) - derivative2.at<float>(i, j);
+        double b2 = derivative2.at<float>(i, j) - k2 * j;
 
-	// color label ·´Ó¦ÁËÔÚxµÄÒ»¶¨·¶Î§ÄÚ£¬¼´Ò»¶¨¿í¶ÈµÄÑÕÉ«ÊÇÊ²Ã´£¬¸øÕâÒ»ÁĞ´òÉÍÁË±êÇ©
-	vector<vector<float>> colorLabel(0, vector<float>(0, 0));
-	for (auto i = minX; i < maxX; i++)
-	{
-		maximas.resize(i - minX + 1);
-		minimas.resize(i - minX + 1);
-		colorLabel.resize(i - minX + 1);
-		vector<double> tmpMin;
-		for (auto j = minY; j < maxY; j++)
-		{
-			// cout << i << endl;
+        // äºŒé˜¶å¯¼æ•°çš„å€¼ï¼Œåˆ¤æ–­æ˜¯æå¤§å€¼è¿˜æ˜¯æå°å€¼ç‚¹
+        double value = k2 * zero + b2;
+        if (value > 0) {
+          tmpMin.push_back(zero);
+        }
+      }
+    }
+    if (!tmpMin.empty() && !maximas[i - minX].empty()) {
+      auto pos = 0;
+      for (auto j = 0; j < tmpMin.size() - 1; j++) {
 
-			// Èç¹ûÓÉÕı±ä¸º
-			if (derivative1.at<float>(i, j) > 0 && derivative1.at<float>(i, j + 1) < 0)
-			{
-				double k = derivative1.at<float>(i, j + 1) - derivative1.at<float>(i, j);  // Ç°Ò»ÁĞ¼õÈ¥ºóÒ»ÁĞ
-				double b = derivative1.at<float>(i, j) - k * j;  
-				double zero = -b / k;
-				double k2 = derivative2.at<float>(i, j + 1) - derivative2.at<float>(i, j);
-				double b2 = derivative2.at<float>(i, j) - k2 * j;
-				double value = k2 * zero + b2;
+        if (tmpMin[j + 1] < maximas[i - minX][pos]) {
+          continue;
+        }
+        minimas[i - minX].push_back(tmpMin[j]);
+        pos++;
+        if (pos >= maximas[i - minX].size())
+          break;
+      }
+    }
+  }
 
-				// Èç¹ûvalueĞ¡ÓÚÁãÇÒÑÕÉ«Àà±ğÎªÀ¶É«£¬Ôò½«¸Ãµã¼ÇÂ¼ÔÚmaximasÏòÁ¿ÖĞ
-				if (value < 0 && lab.at<Vec3b>(i, zero)[0] > 5)
-				{
-					maximas[i - minX].push_back(zero);
-					if (lab.at<Vec3b>(i, zero)[2] < 126)
-					{
-						colorLabel[i - minX].push_back(2); //blue
-					}
-					else
-					{
-						if (lab.at<Vec3b>(i, zero)[1] >= 128)
-						{
-							colorLabel[i - minX].push_back(0); //red
-						}
-						else
-						{
-							colorLabel[i - minX].push_back(1); //green
-						}
-					}
-				}
-			}
+  // ----------------------------------------------------------------------------------------------------------------------------------------
 
-			// ¼ì²â ¼«Ğ¡Öµµã
-			if (derivative1.at<float>(i, j) < 0 && derivative1.at<float>(i, j + 1) > 0)
-			{
-				double k = derivative1.at<float>(i, j + 1) - derivative1.at<float>(i, j);
-				double b = derivative1.at<float>(i, j) - k * j;
+  //  ä¿å­˜æ¯ä¸€è¡Œçš„ç›¸ä½ä¿¡æ¯ï¼Œä»ç°åº¦å€¼å°æ³¢å˜æ¢è½¬å˜ä¸ºç›¸ä½ä¿¡æ¯
+  vector<vector<float>> phases(0, vector<float>(0, 0));
+  emxArray_real_T *phase;
 
-				//  Ò»½×µ¼ÊıÎª0µÄµã£¬Îª¶ş½×µ¼Êı¼«Öµµã
-				double zero = -b / k;
-				double k2 = derivative2.at<float>(i, j + 1) - derivative2.at<float>(i, j);
-				double b2 = derivative2.at<float>(i, j) - k2 * j;
+  //
+  double x_data[1280] = {0};
+  int x_size[2] = {0};
+  // emxInitArray_real_T(&phase, 2);
+  x_size[0] = 1;
+  for (auto i = minX; i < maxX; i++) {
+    phases.resize(i - minX + 1);
 
-				// ¶ş½×µ¼ÊıµÄÖµ£¬ÅĞ¶ÏÊÇ¼«´óÖµ»¹ÊÇ¼«Ğ¡Öµµã
-				double value = k2 * zero + b2;
-				if (value > 0)
-				{
-					tmpMin.push_back(zero);
-				}
-			}
-		}
-		if (!tmpMin.empty() && !maximas[i - minX].empty())
-		{
-			auto pos = 0;
-			for (auto j = 0; j < tmpMin.size() - 1; j++)
-			{
+    //
+    if (minimas[i - minX].empty())
+      continue;
+    int start = minimas[i - minX][0];
+    int end = minimas[i - minX][minimas[i - minX].size() - 1];
+    x_size[1] = end - start;
+    for (auto j = start; j < end; j++) {
+      x_data[j - start] = (float)lab.at<Vec3b>(i, j)[0];
+      //            if (i -minX== 300)
+      //            cout<<x_data[j - start]<<",";
+    }
 
-				if (tmpMin[j + 1] < maximas[i - minX][pos])
-				{
-					continue;
-				}
-				minimas[i - minX].push_back(tmpMin[j]);
-				pos++;
-				if (pos >= maximas[i - minX].size())break;
-			}
+    // ç”¨äºå¯¹ä¸€è¡Œåƒç´ ç°åº¦å€¼åºåˆ—è¿›è¡Œå°æ³¢å˜æ¢ï¼Œå¾—åˆ°æ¯ä¸€è¡Œåƒç´ ç‚¹åœ¨ä¸€å®šèŒƒå›´å†…æ¯ä¸ªå€¼çš„ç›¸ä½å€¼
+    cwt(x_data, x_size, phase);
 
-		}
-	}
+    for (auto j = 0; j < x_size[1]; j++) {
 
+      // å¯¹äºæ¯ä¸€è¡Œåƒç´ ç°åº¦å€¼åºåˆ—ï¼Œä½¿ç”¨cwtå‡½æ•°è¿›è¡Œå°æ³¢å˜æ¢ï¼Œå¹¶å°†ç»“æœå­˜å‚¨åœ¨phaseæŒ‡å‘çš„åŠ¨æ€æ•°ç»„ä¸­ã€‚
+      // ç„¶åï¼Œéå†æ•°ç»„ä¸­çš„æ¯ä¸€ä¸ªå…ƒç´ ï¼Œå°†å…¶é™¤ä»¥Ï€å†ä¹˜ä»¥7ï¼Œå°†å…¶èŒƒå›´å˜ä¸º[-7,
+      // 7]ï¼Œå¹¶å°†ç»“æœå­˜å‚¨åœ¨phaseså‘é‡çš„å½“å‰è¡Œä¸­ã€‚
+      // æœ€ç»ˆï¼Œphaseså‘é‡ä¸­å­˜å‚¨äº†å›¾åƒä¸­æ¯ä¸ªåƒç´ ä½ç½®çš„ç›¸ä½ä¿¡æ¯ã€‚
+      phases[i - minX].push_back(*(phase->data + j) / PI * 7);
 
-	// ----------------------------------------------------------------------------------------------------------------------------------------
+      //            if (i - minX == 300)
+      //                cout << j + start << "," << *(phase->data + j) << endl;
+    }
+    //        if (i == 300) {
+    //            for (auto j = 0; j < maximas[i - minX].size(); j++) {
+    //                cout <<j+start<<","<< *(phase->data + int(maximas[i -
+    //                minX][j] - start)) << endl;
+    //
+    //            }
+    //        }
+  }
 
+  // åˆ›å»ºä¸€ä¸ªå››å…ƒç»„æ•°ï¼Œå¹¶ä¸”å°†å››å…ƒç»„æ•°æ˜ å°„åˆ°ä¸€å®šèŒƒå›´å†…çš„æµ®ç‚¹æ•°ä¸Š
+  // å»ºç«‹é¢œè‰²æ ‡ç­¾åˆ°å€¼ä¹‹é—´çš„æ˜ å°„å…³ç³»ï¼Œå»ºç«‹å¾·å¸ƒé²å› åºåˆ—çš„é¢œè‰²åºåˆ—ä¸æ±‚è§£å¾—åˆ°çš„å›¾åƒä¹‹é—´çš„æ˜ å°„å…³ç³»
+  auto db = DeBruijn(3, 4);
+  double map[76]{0};
+  for (auto i = 0; i < 61; i++) {
+    //
+    int index = int(pow(3, 3) * db.at(i) + pow(3, 2) * db.at(i + 1) +
+                    3 * db.at(i + 2) + db.at(i + 3));
+    map[index] = 7.5 + 14 * i;
+  }
 
-	//  ±£´æÃ¿Ò»ĞĞµÄÏàÎ»ĞÅÏ¢£¬´Ó»Ò¶ÈÖµĞ¡²¨±ä»»×ª±äÎªÏàÎ»ĞÅÏ¢
-	vector<vector<float>> phases(0, vector<float>(0, 0));
-	emxArray_real_T* phase;
+  Reconstruction(maximas, minimas, colorLabel, phases, cArg->getHc(),
+                 cArg->getHp(), map);
+  ofstream destFile("./Data/result/result.txt",
+                    ios::out); // ä»¥æ–‡æœ¬æ¨¡å¼æ‰“å¼€out.txtå¤‡å†™
+  for (auto i = 0; i < coordinate.size(); i++) {
+    if (i == coordinate.size() - 1) {
+      destFile << coordinate[i].at<float>(0, 0) << " "
+               << coordinate[i].at<float>(0, 1) << " "
+               << coordinate[i].at<float>(0, 2);
+    } else {
+      destFile << coordinate[i].at<float>(0, 0) << " "
+               << coordinate[i].at<float>(0, 1) << " "
+               << coordinate[i].at<float>(0, 2)
+               << endl; // å¯ä»¥åƒç”¨couté‚£æ ·ç”¨ofstreamå¯¹è±¡
+    }
+  }
 
-	// 
-	double x_data[1280] = { 0 };
-	int x_size[2] = { 0 };
-	//emxInitArray_real_T(&phase, 2);
-	x_size[0] = 1;
-	for (auto i = minX; i < maxX; i++)
-	{
-		phases.resize(i - minX + 1);
-		
-		// 
-		if (minimas[i - minX].empty())continue;
-		int start = minimas[i - minX][0];
-		int end = minimas[i - minX][minimas[i - minX].size() - 1];
-		x_size[1] = end - start;
-		for (auto j = start; j < end; j++)
-		{
-			x_data[j - start] = (float)lab.at<Vec3b>(i, j)[0];
-			//            if (i -minX== 300)
-			//            cout<<x_data[j - start]<<",";
-		}
-
-		// ÓÃÓÚ¶ÔÒ»ĞĞÏñËØ»Ò¶ÈÖµĞòÁĞ½øĞĞĞ¡²¨±ä»»£¬µÃµ½Ã¿Ò»ĞĞÏñËØµãÔÚÒ»¶¨·¶Î§ÄÚÃ¿¸öÖµµÄÏàÎ»Öµ
-		cwt(x_data, x_size, phase);
-
-		for (auto j = 0; j < x_size[1]; j++)
-		{
-
-			// ¶ÔÓÚÃ¿Ò»ĞĞÏñËØ»Ò¶ÈÖµĞòÁĞ£¬Ê¹ÓÃcwtº¯Êı½øĞĞĞ¡²¨±ä»»£¬²¢½«½á¹û´æ´¢ÔÚphaseÖ¸ÏòµÄ¶¯Ì¬Êı×éÖĞ¡£
-			// È»ºó£¬±éÀúÊı×éÖĞµÄÃ¿Ò»¸öÔªËØ£¬½«Æä³ıÒÔ¦ĞÔÙ³ËÒÔ7£¬½«Æä·¶Î§±äÎª[-7, 7]£¬²¢½«½á¹û´æ´¢ÔÚphasesÏòÁ¿µÄµ±Ç°ĞĞÖĞ¡£
-		//×îÖÕ£¬phasesÏòÁ¿ÖĞ´æ´¢ÁËÍ¼ÏñÖĞÃ¿¸öÏñËØÎ»ÖÃµÄÏàÎ»ĞÅÏ¢¡£
-			phases[i - minX].push_back(*(phase->data + j) / PI * 7);   
-		
-			//            if (i - minX == 300)
-			//                cout << j + start << "," << *(phase->data + j) << endl;
-		}
-		//        if (i == 300) {
-		//            for (auto j = 0; j < maximas[i - minX].size(); j++) {
-		//                cout <<j+start<<","<< *(phase->data + int(maximas[i - minX][j] - start)) << endl;
-		//
-		//            }
-		//        }
-	}
-
-	// ´´½¨Ò»¸öËÄÔª×éÊı£¬²¢ÇÒ½«ËÄÔª×éÊıÓ³Éäµ½Ò»¶¨·¶Î§ÄÚµÄ¸¡µãÊıÉÏ
-	//½¨Á¢ÑÕÉ«±êÇ©µ½ÖµÖ®¼äµÄÓ³Éä¹ØÏµ£¬½¨Á¢µÂ²¼Â³ÒòĞòÁĞµÄÑÕÉ«ĞòÁĞÓëÇó½âµÃµ½µÄÍ¼ÏñÖ®¼äµÄÓ³Éä¹ØÏµ
-	auto db = DeBruijn(3, 4);
-	double map[76]{ 0 };
-	for (auto i = 0; i < 61; i++)
-	{
-		// 
-		int index = int(pow(3, 3) * db.at(i) + pow(3, 2) * db.at(i + 1) + 3 * db.at(i + 2) + db.at(i + 3));
-		map[index] = 7.5 + 14 * i;
-	}
-
-	Reconstruction(maximas, minimas, colorLabel, phases, cArg->getHc(), cArg->getHp(), map);
-	ofstream destFile("./Data/result/result.txt", ios::out); //ÒÔÎÄ±¾Ä£Ê½´ò¿ªout.txt±¸Ğ´
-	for (auto i = 0; i < coordinate.size(); i++)
-	{
-		if (i == coordinate.size() - 1)
-		{
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " "
-				<< coordinate[i].at<float>(0, 2);
-		}
-		else
-		{
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " "
-				<< coordinate[i].at<float>(0, 2) << endl; //¿ÉÒÔÏñÓÃcoutÄÇÑùÓÃofstream¶ÔÏó
-		}
-	}
-
-	destFile.close();
-	saveCoordinate();
+  destFile.close();
+  saveCoordinate();
 }
 
-void CoreAlgorithm::saveCoordinate()
-{
-	ofstream destFile("./Data/result/result.pcd", ios::out); //ÒÔÎÄ±¾Ä£Ê½´ò¿ªout.txt±¸Ğ´
-	destFile << "# .PCD v0.7 - Point Cloud Data file format" << endl;
-	destFile << "VERSION 0.7" << endl;
-	destFile << "FIELDS x y z rgb" << endl;
-	destFile << "SIZE 4 4 4 4" << endl;
-	destFile << "TYPE F F F F" << endl;
-	destFile << "COUNT 1 1 1 1" << endl;
-	destFile << "WIDTH " << coordinate.size() << endl;
-	destFile << "HEIGHT 1" << endl;
-	destFile << "VIEWPOINT 0 0 0 1 0 0 0" << endl;
-	destFile << "POINTS " << coordinate.size() << endl;
-	destFile << "DATA ascii" << endl;
-	for (auto i = 0; i < coordinate.size(); i++)
-	{
-		//        cout << i << endl;
-		if (i == coordinate.size() - 1)
-		{
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " "
-				<< coordinate[i].at<float>(0, 2) << " " << color[i];
-		}
-		else
-		{
-			destFile << coordinate[i].at<float>(0, 0) << " " << coordinate[i].at<float>(0, 1) << " "
-				<< coordinate[i].at<float>(0, 2) << " " << color[i] << endl; //¿ÉÒÔÏñÓÃcoutÄÇÑùÓÃofstream¶ÔÏó
-		}
-	}
-	destFile.close();
+void CoreAlgorithm::saveCoordinate() {
+  ofstream destFile("./Data/result/result.pcd",
+                    ios::out); // ä»¥æ–‡æœ¬æ¨¡å¼æ‰“å¼€out.txtå¤‡å†™
+  destFile << "# .PCD v0.7 - Point Cloud Data file format" << endl;
+  destFile << "VERSION 0.7" << endl;
+  destFile << "FIELDS x y z rgb" << endl;
+  destFile << "SIZE 4 4 4 4" << endl;
+  destFile << "TYPE F F F F" << endl;
+  destFile << "COUNT 1 1 1 1" << endl;
+  destFile << "WIDTH " << coordinate.size() << endl;
+  destFile << "HEIGHT 1" << endl;
+  destFile << "VIEWPOINT 0 0 0 1 0 0 0" << endl;
+  destFile << "POINTS " << coordinate.size() << endl;
+  destFile << "DATA ascii" << endl;
+  for (auto i = 0; i < coordinate.size(); i++) {
+    //        cout << i << endl;
+    if (i == coordinate.size() - 1) {
+      destFile << coordinate[i].at<float>(0, 0) << " "
+               << coordinate[i].at<float>(0, 1) << " "
+               << coordinate[i].at<float>(0, 2) << " " << color[i];
+    } else {
+      destFile << coordinate[i].at<float>(0, 0) << " "
+               << coordinate[i].at<float>(0, 1) << " "
+               << coordinate[i].at<float>(0, 2) << " " << color[i]
+               << endl; // å¯ä»¥åƒç”¨couté‚£æ ·ç”¨ofstreamå¯¹è±¡
+    }
+  }
+  destFile.close();
 }
 
-vector<Mat> CoreAlgorithm::getCoordinates()
-{
-	return coordinate;
-}
+vector<Mat> CoreAlgorithm::getCoordinates() { return coordinate; }
