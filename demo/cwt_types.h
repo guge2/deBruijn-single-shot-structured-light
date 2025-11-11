@@ -12,8 +12,7 @@
 #include "rtwtypes.h"
 
 // Type Definitions
-struct emxArray_real_T
-{
+struct emxArray_real_T {
 	double* data;
 	int* size;
 	int allocatedSize;
@@ -21,8 +20,7 @@ struct emxArray_real_T
 	boolean_T canFreeData;
 };
 
-struct cwtfilterbank
-{
+struct cwtfilterbank {
 	double VoicesPerOctave;
 	char Wavelet[5];
 	double SamplingFrequency;
@@ -41,8 +39,7 @@ struct cwtfilterbank
 	double CutOff;
 };
 
-struct emxArray_creal_T
-{
+struct emxArray_creal_T {
 	creal_T* data;
 	int* size;
 	int allocatedSize;
@@ -50,8 +47,7 @@ struct emxArray_creal_T
 	boolean_T canFreeData;
 };
 
-struct emxArray_char_T
-{
+struct emxArray_char_T {
 	char* data;
 	int* size;
 	int allocatedSize;

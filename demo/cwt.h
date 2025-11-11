@@ -16,8 +16,7 @@
 #include "cwt_types.h"
 
 // Function Declarations
-extern void cwt(const double x_data[], const int x_size[2], emxArray_real_T
-    * phase);
+extern void cwt(const double x_data[], const int x_size[2], emxArray_real_T *phase);
 
 #endif
 

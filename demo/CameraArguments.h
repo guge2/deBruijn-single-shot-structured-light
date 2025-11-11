@@ -1,8 +1,7 @@
 #pragma once
 #include <opencv2/opencv.hpp>
 
-class CameraArguments
-{
+class CameraArguments {
 private:
 	cv::Mat r12;
 	cv::Mat t12;
@@ -16,7 +15,6 @@ private:
 	~CameraArguments();
 
 public:
-
 	static CameraArguments* getInstance(cv::Mat r, cv::Mat t, cv::Mat kc, cv::Mat kp);
 	static CameraArguments* getInstance();
 	static CameraArguments* instance;
